@@ -1,6 +1,7 @@
 const std = @import("std");
 
 // https://www.crockford.com/mckeeman.html
+// https://www.json.org/json-en.html
 
 const TokenTag = enum { brace_left, brace_right, colon, comma, string, number, white_space, end_of_file };
 
@@ -80,140 +81,14 @@ fn tokenize(allocator: std.mem.Allocator, input: []const u8) !std.ArrayList(Toke
     return tokens;
 }
 
-const ValueTag = enum { object, string };
+const ValueTag = enum { object, string, number };
 
-const Value = union(ValueTag) { object: std.StringArrayHashMap(Value), string: []const u8 };
-
-// fn parse_member(tokens: []const Token, index: usize) struct { key: []const u8, value: Value, index: usize } {
-//     var key : []const u8 = undefined;
-//     if(index < tokens.len and tokens[index] == .white_space){
-//         index += 1;
-//     }
-//
-//     if(index < tokens.len and tokens[index] == .string) {
-//         index += 1;
-//         // set string
-//     }
-//
-//        if(index < tokens.len and tokens[index] == .white_space){
-//         index += 1;
-//     }
-//
-//     parse_element();
-// }
-//
-// fn parse_members() void {
-//     parse_member();
-//
-//     if(index < tokens.len and tokens[index] == .comma){
-//         parse_members();
-//     }
-// }
-//
-// fn parse_object(tokens: []const Token, index: usize) struct { value: ?Value, index: usize } {
-//     if (index < tokens.len and tokens[index] != .brace_left) {
-//         return false;
-//     }
-//     index += 1;
-//
-//     if (index < tokens.len and tokens[index] == .white_space) {
-//         index += 1;
-//     }
-//
-//     if (index < tokens.len and tokens[index] == .brace_right) {
-//         return .{ null, index + 1 };
-//     }
-//
-//     // optional
-//     parse_members();
-//
-//     if (index < tokens.len and tokens[index] == .brace_right) {
-//         return .{ null, index + 1 };
-//     }
-//
-//     unreachable;
-// }
-//
-// fn parse_value(tokens: []const Token, index: usize) Value {
-//     switch (tokens[index]) {
-//         .brace_left => {},
-//         else => unreachable,
-//     }
-// }
-//
-// fn parse_element(tokens: []const Token, index: usize) struct { value: Value, index: usize } {
-//     if (index < tokens.len and tokens[index] == .whitespace) {
-//         index += 1;
-//     }
-//
-//     const res = parse_value();
-//
-//     if (index < tokens.len and tokens[index] == .whitespace) {
-//         index += 1;
-//     }
-//
-//     return .{ .value = res.Value, .index = index };
-// }
-//
-// /// parse the given tokens based on this JSON grammar: https://www.crockford.com/mckeeman.html
-// fn parse(tokens: []const Token) Value {
-//     const index: usize = 0;
-//     const res = parse_element(tokens, index);
-//     std.debug.assert(res.index == tokens.len);
-// }
-
-// fn parse(tokens: []const Token) Value {
-//     var head : usize = 0;
-//     while(head < tokens.len) : (head += 1){
-//         switch (tokens[head]) {
-//             .brace_left => {},
-//             else => unreachable
-//         }
-//     }
-// }
-
-// fn parse_value(tokens: []const Token) ?Value {
-//     const  head : usize = 0;
-//     if(head >= tokens.len or tokens[head] != .string){
-//         return null;
-//     }
-//
-//     const key: []const u8 = tokens[head].string;
-//
-//     if(head >= tokens.len){
-//         // error ?
-//         return null;
-//     }
-//
-//     const value : Value = switch (tokens[head]) {
-//
-//     };
-//
-//     return Value{ .object = };
-// }
-//
-// fn parse_object(tokens: []const Token) ?Value {
-//
-// }
+const Value = union(ValueTag) { object: std.StringArrayHashMap(Value), string: []const u8, number: []const u8 };
 
 const log_parse = std.log.scoped(.parse);
 
-fn parse_object(allocator: std.mem.Allocator, tokens: []const Token, start: usize) !?struct { value: Value, head: usize } {
-    var head: usize = start;
-
-    if (head >= tokens.len or tokens[head] != .brace_left) {
-        return null;
-    }
-
-    var map = std.StringArrayHashMap(Value).init(allocator);
-
-    head += 1;
-
-    if (head < tokens.len and tokens[head] == .brace_right) {
-        // early exit: empty object
-        return .{ .value = .{ .object = map }, .head = head + 1 };
-    }
-
+fn add_key_value_pair(map: *std.StringArrayHashMap(Value), allocator: std.mem.Allocator, tokens: []const Token, start: usize) !usize {
+    var head = start;
     if (head >= tokens.len or tokens[head] != .string) {
         log_parse.err("object missing key at token {}", .{head});
         return error.objectMissingKey;
@@ -241,12 +116,42 @@ fn parse_object(allocator: std.mem.Allocator, tokens: []const Token, start: usiz
 
             try map.put(key[1 .. key.len - 1], .{ .string = copy });
         },
+        .number => {
+            const number_str = tokens[head].number;
+            const copy = try allocator.dupe(u8, number_str);
+
+            try map.put(key[1 .. key.len - 1], .{ .number = copy });
+        },
         else => unreachable,
     }
 
     head += 1;
 
-    // TODO check for comma
+    return head;
+}
+
+fn parse_object(allocator: std.mem.Allocator, tokens: []const Token, start: usize) !?struct { value: Value, head: usize } {
+    var head: usize = start;
+
+    if (head >= tokens.len or tokens[head] != .brace_left) {
+        return null;
+    }
+
+    head += 1;
+
+    var map = std.StringArrayHashMap(Value).init(allocator);
+
+    if (head < tokens.len and tokens[head] == .brace_right) {
+        // early exit: empty object
+        return .{ .value = .{ .object = map }, .head = head + 1 };
+    }
+
+    head = try add_key_value_pair(&map, allocator, tokens, head);
+
+    while (head < tokens.len and tokens[head] == .comma) {
+        head += 1;
+        head = try add_key_value_pair(&map, allocator, tokens, head);
+    }
 
     if (head >= tokens.len or tokens[head] != .brace_right) {
         return error.objectMissingClosingBrace;
@@ -285,20 +190,13 @@ const Json = struct {
         var iterator = self.data.object.iterator();
         while (iterator.next()) |entry| {
             switch (entry.value_ptr.*) {
-                .string => |s| self.allocator.free(s),
+                .string, .number => |s| self.allocator.free(s),
                 else => unreachable,
             }
         }
         self.data.object.deinit();
     }
 };
-
-// fn parse_json(allocator: std.mem.Allocator, input: []const u8) void {
-//     const tokens = try tokenize(allocator, input);
-//     defer tokens.deinit();
-//
-//     const json = try parse(allocator, tokens.items);
-// }
 
 test "empty object" {
     const data = "{  \n  }";
@@ -333,7 +231,7 @@ test "object with two key string pairs" {
     const data =
         \\{
         \\  "firstName": "John",
-        \\  "lastName": "Doe",
+        \\  "lastName": "Doe"
         \\}
     ;
 
@@ -347,4 +245,27 @@ test "object with two key string pairs" {
     try std.testing.expect(std.mem.eql(u8, json.data.object.get("firstName").?.string, "John"));
     try std.testing.expect(json.data.object.get("lastName").? == .string);
     try std.testing.expect(std.mem.eql(u8, json.data.object.get("lastName").?.string, "Doe"));
+}
+
+test "object with three key value pairs" {
+    const data =
+        \\{
+        \\  "firstName": "John",
+        \\  "lastName": "Doe",
+        \\  "age": 23
+        \\}
+    ;
+
+    const allocator = std.testing.allocator;
+
+    var json = try Json.init(allocator, data);
+    defer json.deinit();
+
+    try std.testing.expect(json.data == .object);
+    try std.testing.expect(json.data.object.get("firstName").? == .string);
+    try std.testing.expect(std.mem.eql(u8, json.data.object.get("firstName").?.string, "John"));
+    try std.testing.expect(json.data.object.get("lastName").? == .string);
+    try std.testing.expect(std.mem.eql(u8, json.data.object.get("lastName").?.string, "Doe"));
+    try std.testing.expect(json.data.object.get("age").? == .number);
+    try std.testing.expect(std.mem.eql(u8, json.data.object.get("age").?.number, "23"));
 }

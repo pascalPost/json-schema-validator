@@ -1,12 +1,95 @@
 const std = @import("std");
 const testing = std.testing;
 
-export fn add(a: i32, b: i32) i32 {
-    return a + b;
+fn check_object(node: std.json.ObjectMap, data: std.json.Value) void {
+    if (data != .object) {
+        std.debug.panic("data type mismatch encountered", .{});
+    }
+
+    // check properties
+    const properties = node.get("properties") orelse {
+        std.debug.panic("schema error: missing properties of object", .{});
+    };
+
+    if (properties != .object) {
+        std.debug.panic("schema error: properties value must be object", .{});
+    }
+
+    const prop_map = properties.object;
+
+    // iterate over all data keys and see if they can be found in the properties
+    var iterator = data.object.iterator();
+    while (iterator.next()) |entry| {
+        const schema_node = prop_map.get(entry.key_ptr.*) orelse {
+            std.debug.panic("non-compliant data given: key {s} not in schema", .{entry.key_ptr.*});
+        };
+
+        if (schema_node != .object) {
+            std.debug.panic("schema error: properties value must be object", .{});
+        }
+
+        check_node(schema_node.object, entry.value_ptr.*);
+    }
 }
 
-test "basic add functionality" {
-    try testing.expect(add(3, 7) == 10);
+fn check_integer(node: std.json.ObjectMap, data: std.json.Value) void {
+    if (data != .integer) {
+        std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
+    }
+
+    // TODO do this only for debugging: this is only to check if all schema options are known and used.
+    var iterator = node.iterator();
+    while (iterator.next()) |entry| {
+        if (std.mem.eql(u8, entry.key_ptr.*, "type")) {
+            std.debug.assert(std.mem.eql(u8, entry.value_ptr.string, "integer"));
+            continue;
+        }
+
+        if (std.mem.eql(u8, entry.key_ptr.*, "description")) continue;
+
+        if (std.mem.eql(u8, entry.key_ptr.*, "minimum")) {
+            if (entry.value_ptr.* != .integer) {
+                std.debug.panic("schema error: integer minimum not given as interger", .{});
+            }
+
+            if (data.integer < entry.value_ptr.integer) {
+                std.debug.panic("non-compliant data given: value {} violates specified minimum {}", .{ data.integer, entry.value_ptr.integer });
+            }
+
+            continue;
+        }
+
+        std.debug.panic("schema error: unknown integer key: {s}", .{entry.key_ptr.*});
+    }
+}
+
+// https://json-schema.org/implementers/interfaces#two-argument-validation
+fn check_node(node: std.json.ObjectMap, data: std.json.Value) void {
+    const node_type = node.get("type") orelse {
+        std.debug.panic("missing type key for schema node", .{});
+    };
+
+    std.debug.assert(node_type == .string);
+
+    if (std.mem.eql(u8, node_type.string, "object")) {
+        check_object(node, data);
+
+        return;
+    }
+
+    if (std.mem.eql(u8, node_type.string, "string")) {
+        if (data != .string) {
+            std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "string", @tagName(data) });
+        }
+        return;
+    }
+
+    if (std.mem.eql(u8, node_type.string, "integer")) {
+        // match any number with a zero fractional part
+        return check_integer(node, data);
+    }
+
+    std.debug.panic("unknown schema type: {s}", .{node_type.string});
 }
 
 test "example" {
@@ -35,14 +118,6 @@ test "example" {
         \\  }
         \\}
     ;
-    
-    const schema_parsed = try std.json.parseFromSlice(std.json.Value, allocator, schema, .{});
-    defer schema_parsed.deinit();
-
-    schema_parsed.value
-
-    const root = schema_parsed.value;
-
 
     const data =
         \\{
@@ -51,4 +126,15 @@ test "example" {
         \\  "age": 21
         \\}
     ;
+
+    const schema_parsed = try std.json.parseFromSlice(std.json.Value, allocator, schema, .{});
+    defer schema_parsed.deinit();
+
+    const data_parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
+    defer data_parsed.deinit();
+
+    std.debug.assert(schema_parsed.value == .object);
+    std.debug.assert(data_parsed.value == .object);
+
+    check_node(schema_parsed.value.object, data_parsed.value);
 }
