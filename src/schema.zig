@@ -82,6 +82,44 @@ fn check_integer(node: std.json.ObjectMap, data: std.json.Value) bool {
     return true;
 }
 
+fn check_number(node: std.json.ObjectMap, data: std.json.Value) bool {
+    // perhaps merge this with the check_integer (?)
+    switch (data) {
+        .integer, .float => {},
+        else => {
+            std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
+            return false;
+        },
+    }
+
+    // TODO do this only for debugging: this is only to check if all schema options are known and used.
+    var iterator = node.iterator();
+    while (iterator.next()) |entry| {
+        if (std.mem.eql(u8, entry.key_ptr.*, "type")) {
+            std.debug.assert(std.mem.eql(u8, entry.value_ptr.string, "number"));
+            continue;
+        }
+
+        if (std.mem.eql(u8, entry.key_ptr.*, "description")) continue;
+
+        if (std.mem.eql(u8, entry.key_ptr.*, "minimum")) {
+            if (entry.value_ptr.* != .integer) {
+                std.debug.panic("schema error: integer minimum not given as interger", .{});
+            }
+
+            if (data.integer < entry.value_ptr.integer) {
+                std.debug.panic("non-compliant data given: value {} violates specified minimum {}", .{ data.integer, entry.value_ptr.integer });
+            }
+
+            continue;
+        }
+
+        std.debug.panic("schema error: unknown integer key: {s}", .{entry.key_ptr.*});
+    }
+
+    return true;
+}
+
 // https://json-schema.org/implementers/interfaces#two-argument-validation
 pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) bool {
     const node_type = node.get("type") orelse {
@@ -96,7 +134,8 @@ pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) bool {
 
     if (std.mem.eql(u8, node_type.string, "string")) {
         if (data != .string) {
-            std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "string", @tagName(data) });
+            std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "string", @tagName(data) });
+            return false;
         }
         return true;
     }
@@ -104,6 +143,10 @@ pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) bool {
     if (std.mem.eql(u8, node_type.string, "integer")) {
         // match any number with a zero fractional part
         return check_integer(node, data);
+    }
+
+    if (std.mem.eql(u8, node_type.string, "number")) {
+        return check_number(node, data);
     }
 
     std.debug.panic("unknown schema type: {s}", .{node_type.string});
