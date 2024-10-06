@@ -33,8 +33,19 @@ fn check_object(node: std.json.ObjectMap, data: std.json.Value) void {
 }
 
 fn check_integer(node: std.json.ObjectMap, data: std.json.Value) void {
-    if (data != .integer) {
-        std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
+    switch (data) {
+        .integer => {},
+        .float => {
+            // float with zero fractional part is an integer
+            const int: i64 = @intFromFloat(data.float);
+            const float: f64 = @floatFromInt(int);
+            if (data.float != float) {
+                std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", "float with non-zero fractional part" });
+            }
+        },
+        else => {
+            std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
+        },
     }
 
     // TODO do this only for debugging: this is only to check if all schema options are known and used.
@@ -64,7 +75,7 @@ fn check_integer(node: std.json.ObjectMap, data: std.json.Value) void {
 }
 
 // https://json-schema.org/implementers/interfaces#two-argument-validation
-fn check_node(node: std.json.ObjectMap, data: std.json.Value) void {
+pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) void {
     const node_type = node.get("type") orelse {
         std.debug.panic("missing type key for schema node", .{});
     };

@@ -1,4 +1,5 @@
 const std = @import("std");
+const jsonSchema = @import("schema.zig");
 
 // TODO add JSON-Schema-Test_Suite (https://github.com/json-schema-org/JSON-Schema-Test-Suite/tree/main) as submodule
 
@@ -33,6 +34,12 @@ test "read test suite" {
         for (tests.array.items) |t| {
             try std.testing.expect(t == .object);
             std.debug.print("test: {s}\n", .{t.object.get("description").?.string});
+
+            const data = t.object.get("data").?;
+
+            // const expect = t.object.get("valid").?.bool;
+
+            jsonSchema.check_node(schema.object, data);
         }
     }
 }
