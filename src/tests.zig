@@ -37,9 +37,11 @@ test "read test suite" {
 
             const data = t.object.get("data").?;
 
-            // const expect = t.object.get("valid").?.bool;
+            const expected = t.object.get("valid").?.bool;
 
-            jsonSchema.check_node(schema.object, data);
+            const actual = jsonSchema.check_node(schema.object, data);
+
+            try std.testing.expectEqual(expected, actual);
         }
     }
 }

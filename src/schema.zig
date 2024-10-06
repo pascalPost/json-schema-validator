@@ -1,7 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 
-fn check_object(node: std.json.ObjectMap, data: std.json.Value) void {
+fn check_object(node: std.json.ObjectMap, data: std.json.Value) bool {
     if (data != .object) {
         std.debug.panic("data type mismatch encountered", .{});
     }
@@ -28,11 +28,15 @@ fn check_object(node: std.json.ObjectMap, data: std.json.Value) void {
             std.debug.panic("schema error: properties value must be object", .{});
         }
 
-        check_node(schema_node.object, entry.value_ptr.*);
+        if (!check_node(schema_node.object, entry.value_ptr.*)) {
+            return false;
+        }
     }
+
+    return true;
 }
 
-fn check_integer(node: std.json.ObjectMap, data: std.json.Value) void {
+fn check_integer(node: std.json.ObjectMap, data: std.json.Value) bool {
     switch (data) {
         .integer => {},
         .float => {
@@ -40,11 +44,13 @@ fn check_integer(node: std.json.ObjectMap, data: std.json.Value) void {
             const int: i64 = @intFromFloat(data.float);
             const float: f64 = @floatFromInt(int);
             if (data.float != float) {
-                std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", "float with non-zero fractional part" });
+                std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", "float with non-zero fractional part" });
+                return false;
             }
         },
         else => {
-            std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
+            std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
+            return false;
         },
     }
 
@@ -72,10 +78,12 @@ fn check_integer(node: std.json.ObjectMap, data: std.json.Value) void {
 
         std.debug.panic("schema error: unknown integer key: {s}", .{entry.key_ptr.*});
     }
+
+    return true;
 }
 
 // https://json-schema.org/implementers/interfaces#two-argument-validation
-pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) void {
+pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) bool {
     const node_type = node.get("type") orelse {
         std.debug.panic("missing type key for schema node", .{});
     };
@@ -83,16 +91,14 @@ pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) void {
     std.debug.assert(node_type == .string);
 
     if (std.mem.eql(u8, node_type.string, "object")) {
-        check_object(node, data);
-
-        return;
+        return check_object(node, data);
     }
 
     if (std.mem.eql(u8, node_type.string, "string")) {
         if (data != .string) {
             std.debug.panic("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "string", @tagName(data) });
         }
-        return;
+        return true;
     }
 
     if (std.mem.eql(u8, node_type.string, "integer")) {
@@ -101,6 +107,8 @@ pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) void {
     }
 
     std.debug.panic("unknown schema type: {s}", .{node_type.string});
+
+    return false;
 }
 
 test "example" {
@@ -147,5 +155,5 @@ test "example" {
     std.debug.assert(schema_parsed.value == .object);
     std.debug.assert(data_parsed.value == .object);
 
-    check_node(schema_parsed.value.object, data_parsed.value);
+    try std.testing.expect(check_node(schema_parsed.value.object, data_parsed.value));
 }
