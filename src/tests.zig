@@ -6,7 +6,7 @@ const jsonSchema = @import("schema.zig");
 test "read test suite" {
     const allocator = std.testing.allocator;
 
-    var file = try std.fs.cwd().openFile("tests/JSON-Schema-Test-Suite/tests/draft7/type.json", .{});
+    var file = try std.fs.cwd().openFile("JSON-Schema-Test-Suite/tests/draft7/type.json", .{});
     defer file.close();
 
     // Read the entire file content into memory
@@ -22,11 +22,12 @@ test "read test suite" {
     for (root.value.array.items) |case| {
         try std.testing.expect(case == .object);
 
-        // section description
+        // description
+        std.debug.print("case: {s}\n", .{case.object.get("description").?.string});
 
         const schema = case.object.get("schema").?;
 
-        // section tests
+        // tests
         const tests = case.object.get("tests").?;
 
         try std.testing.expect(tests == .array);
