@@ -8,7 +8,7 @@ const testing = std.testing;
 fn check_object(node: std.json.ObjectMap, data: std.json.Value, report: bool) std.mem.Allocator.Error!bool {
     if (data != .object) {
         if (report) {
-            std.log.err("data type mismatch encountered", .{});
+            std.log.warn("data type mismatch encountered", .{});
         }
         return false;
     }
@@ -50,14 +50,14 @@ fn check_integer(node: std.json.ObjectMap, data: std.json.Value, report: bool) b
             const float: f64 = @floatFromInt(int);
             if (data.float != float) {
                 if (report) {
-                    std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", "float with non-zero fractional part" });
+                    std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", "float with non-zero fractional part" });
                 }
                 return false;
             }
         },
         else => {
             if (report) {
-                std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
+                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
             }
             return false;
         },
@@ -94,7 +94,7 @@ fn check_number(node: std.json.ObjectMap, data: std.json.Value, report: bool) bo
         .integer, .float => {},
         else => {
             if (report) {
-                std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
+                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
             }
             return false;
         },
@@ -136,7 +136,7 @@ fn check_type(node: std.json.ObjectMap, data: std.json.Value, type_name: []const
     if (std.mem.eql(u8, type_name, "string")) {
         if (data != .string) {
             if (report) {
-                std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "string", @tagName(data) });
+                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "string", @tagName(data) });
             }
             return false;
         }
@@ -155,7 +155,7 @@ fn check_type(node: std.json.ObjectMap, data: std.json.Value, type_name: []const
     if (std.mem.eql(u8, type_name, "array")) {
         if (data != .array) {
             if (report) {
-                std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "array", @tagName(data) });
+                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "array", @tagName(data) });
             }
             return false;
         }
@@ -166,7 +166,7 @@ fn check_type(node: std.json.ObjectMap, data: std.json.Value, type_name: []const
     if (std.mem.eql(u8, type_name, "boolean")) {
         if (data != .bool) {
             if (report) {
-                std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "boolean", @tagName(data) });
+                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "boolean", @tagName(data) });
             }
             return false;
         }
@@ -176,7 +176,7 @@ fn check_type(node: std.json.ObjectMap, data: std.json.Value, type_name: []const
 
     if (std.mem.eql(u8, type_name, "null")) {
         if (data != .null) {
-            std.log.err("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "null", @tagName(data) });
+            std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "null", @tagName(data) });
             return false;
         }
 
@@ -218,7 +218,7 @@ pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) !bool {
                 }
             }
 
-            std.log.err("non-compliant data given: data type did not match any of the required types (expected: [{s}], given: {s})", .{ buffer[0..len], @tagName(data) });
+            std.log.warn("non-compliant data given: data type did not match any of the required types (expected: [{s}], given: {s})", .{ buffer[0..len], @tagName(data) });
 
             return false;
         },
@@ -229,8 +229,6 @@ pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) !bool {
 
     return false;
 }
-
-pub const std_options = .{ .log_level = .info };
 
 test "example" {
     const allocator = std.testing.allocator;

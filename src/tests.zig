@@ -1,7 +1,34 @@
 const std = @import("std");
 const jsonSchema = @import("schema.zig");
 
-// TODO add JSON-Schema-Test_Suite (https://github.com/json-schema-org/JSON-Schema-Test-Suite/tree/main) as submodule
+pub const std_options = struct {
+    pub const log_level = .err;
+};
+
+fn run_test(expected: bool, actual: bool, case_name: []const u8, test_name: []const u8, schema: std.json.Value, data: std.json.Value) !void {
+    if (expected != actual) {
+        const schema_str = try std.json.stringifyAlloc(std.testing.allocator, schema, .{});
+        defer std.testing.allocator.free(schema_str);
+
+        const data_str = try std.json.stringifyAlloc(std.testing.allocator, data, .{});
+        defer std.testing.allocator.free(data_str);
+
+        std.debug.print(
+            \\case: {s}
+            \\test: {s}
+            \\============== schema: ===============
+            \\{s}
+            \\=============== data: ================
+            \\{s}
+            \\============= expected: ==============
+            \\{}
+            \\============== actual: ===============
+            \\{}
+            \\======================================
+        , .{ case_name, test_name, schema_str, data_str, expected, actual });
+        return error.failedTest;
+    }
+}
 
 test "read test suite" {
     const allocator = std.testing.allocator;
@@ -17,32 +44,18 @@ test "read test suite" {
     const root = try std.json.parseFromSlice(std.json.Value, allocator, json_data, .{});
     defer root.deinit();
 
-    try std.testing.expect(root.value == .array);
-
     for (root.value.array.items) |case| {
-        try std.testing.expect(case == .object);
-
-        // description
-        std.debug.print("case: {s}\n", .{case.object.get("description").?.string});
-
+        const case_name = case.object.get("description").?.string;
         const schema = case.object.get("schema").?;
-
-        // tests
         const tests = case.object.get("tests").?;
 
-        try std.testing.expect(tests == .array);
-
         for (tests.array.items) |t| {
-            try std.testing.expect(t == .object);
-            std.debug.print("test: {s}\n", .{t.object.get("description").?.string});
-
+            const test_name = t.object.get("description").?.string;
             const data = t.object.get("data").?;
-
             const expected = t.object.get("valid").?.bool;
+            const actual = try jsonSchema.check_node(schema.object, data);
 
-            const actual = jsonSchema.check_node(schema.object, data);
-
-            try std.testing.expectEqual(expected, actual);
+            try run_test(expected, actual, case_name, test_name, schema, data);
         }
     }
 }
