@@ -1,238 +1,236 @@
 const std = @import("std");
 const testing = std.testing;
 
+const Stack = struct {
+    data: std.ArrayList(u8),
+
+    fn init(allocator: std.mem.Allocator) Stack {
+        return Stack{ .data = std.ArrayList(u8).init(allocator) };
+    }
+
+    fn deinit(self: Stack) void {
+        self.data.deinit();
+    }
+
+    fn push(self: *Stack, p: []const u8) !void {
+        try self.data.append(p);
+    }
+
+    fn pop(self: *Stack) void {
+        _ = self.data.pop();
+    }
+
+    fn path(self: Stack) []const u8 {
+        return self.data.items;
+    }
+};
+
 // TODO : split into two steps
 // 1) validate the given schema file
 // 2) validate the given data based on the validated schema
 
-fn check_object(node: std.json.ObjectMap, data: std.json.Value, report: bool) std.mem.Allocator.Error!bool {
-    if (data != .object) {
-        if (report) {
-            std.log.warn("data type mismatch encountered", .{});
-        }
-        return false;
-    }
+// const SchemaErrorType = enum {
+//     typeMismatch,
+//     missingRequiredProperty,
+//     notAllowedAdditionalProperty,
+//     patternMismatch,
+//     numberOutOfRange,
+//     ArrayLengthViolation,
+//     enumMismatch,
+//     formatViolation,
+//     invalidItemsInArray,
+//     dependencyError,
+//     StringLengthViolation,
+//     OneOfViolation,
+//     AnyOfViolation,
+//     AllOfViolation,
+// };
+//
+// fn get_error_message(errorTag: SchemaErrorType) []const u8 {
+//     return switch (errorTag) {
+//         .typeMismatch => "Expected type {s} but found {s}",
+//         else => unreachable,
+//     };
+// }
 
-    // check properties
-    if (node.get("properties")) |properties| {
-        const prop_map = properties.object;
+const Error = struct {
+    path: []const u8,
+    msg: []const u8,
+};
 
-        if (properties != .object) {
-            std.debug.panic("schema error: properties value must be object", .{});
-        }
+pub const Errors = std.ArrayList(Error);
 
-        // iterate over all data keys and see if they can be found in the properties
-        var iterator = data.object.iterator();
-        while (iterator.next()) |entry| {
-            const schema_node = prop_map.get(entry.key_ptr.*) orelse {
-                std.debug.panic("non-compliant data given: key {s} not in schema", .{entry.key_ptr.*});
-            };
-
-            if (schema_node != .object) {
-                std.debug.panic("schema error: properties value must be object", .{});
-            }
-
-            if (!try check_node(schema_node.object, entry.value_ptr.*)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
+fn create_error_type_mismatch(allocator: std.mem.Allocator, path: []const u8, expected: []const u8, found: []const u8) !Error {
+    const msg = try std.fmt.allocPrint(allocator, "Expected type {s} but found {s}", .{ expected, found });
+    return .{ .path = path, .msg = msg };
 }
 
-fn check_integer(node: std.json.ObjectMap, data: std.json.Value, report: bool) bool {
-    switch (data) {
-        .integer => {},
-        .float => {
-            // float with zero fractional part is an integer
-            const int: i64 = @intFromFloat(data.float);
-            const float: f64 = @floatFromInt(int);
-            if (data.float != float) {
-                if (report) {
-                    std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", "float with non-zero fractional part" });
-                }
-                return false;
-            }
-        },
-        else => {
-            if (report) {
-                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
-            }
-            return false;
-        },
-    }
+fn create_error_type_array_mismatch(allocator: std.mem.Allocator, path: []const u8) Error {
+    // // error message
+    // var buffer: [1024:0]u8 = undefined;
+    // var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    // const allocator = fba.allocator();
 
-    // TODO do this only for debugging: this is only to check if all schema options are known and used.
-    var iterator = node.iterator();
-    while (iterator.next()) |entry| {
-        if (std.mem.eql(u8, entry.key_ptr.*, "type")) continue;
+    // var len: usize = 0;
+    // for (t.array.items, 0..) |item, i| {
+    //     _ = try allocator.dupe(u8, item.string);
+    //     len += item.string.len;
+    //     if (i < t.array.items.len - 1) {
+    //         _ = try allocator.dupe(u8, ", ");
+    //         len += 2;
+    //     }
+    // }
 
-        if (std.mem.eql(u8, entry.key_ptr.*, "description")) continue;
+    // std.log.warn("non-compliant data given: data type did not match any of the required types (expected: [{s}], given: {s})", .{ buffer[0..len], @tagName(data) });
 
-        if (std.mem.eql(u8, entry.key_ptr.*, "minimum")) {
-            if (entry.value_ptr.* != .integer) {
-                std.debug.panic("schema error: integer minimum not given as interger", .{});
-            }
+    _ = allocator;
 
-            if (data.integer < entry.value_ptr.integer) {
-                std.debug.panic("non-compliant data given: value {} violates specified minimum {}", .{ data.integer, entry.value_ptr.integer });
-            }
-
-            continue;
-        }
-
-        std.debug.panic("schema error: unknown integer key: {s}", .{entry.key_ptr.*});
-    }
-
-    return true;
+    // return .{ .path = path, .msg = try std.fmt.allocPrint(allocator, "Expected type {s} but found {s}", .{ expected, found }) };
+    return .{ .path = path, .msg = "" };
 }
 
-fn check_number(node: std.json.ObjectMap, data: std.json.Value, report: bool) bool {
-    // perhaps merge this with the check_integer (?)
-    switch (data) {
-        .integer, .float => {},
-        else => {
-            if (report) {
-                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "integer", @tagName(data) });
-            }
-            return false;
-        },
-    }
-
-    // TODO do this only for debugging: this is only to check if all schema options are known and used.
-    var iterator = node.iterator();
-    while (iterator.next()) |entry| {
-        if (std.mem.eql(u8, entry.key_ptr.*, "type")) {
-            std.debug.assert(std.mem.eql(u8, entry.value_ptr.string, "number"));
-            continue;
-        }
-
-        if (std.mem.eql(u8, entry.key_ptr.*, "description")) continue;
-
-        if (std.mem.eql(u8, entry.key_ptr.*, "minimum")) {
-            if (entry.value_ptr.* != .integer) {
-                std.debug.panic("schema error: integer minimum not given as interger", .{});
-            }
-
-            if (data.integer < entry.value_ptr.integer) {
-                std.debug.panic("non-compliant data given: value {} violates specified minimum {}", .{ data.integer, entry.value_ptr.integer });
-            }
-
-            continue;
-        }
-
-        std.debug.panic("schema error: unknown integer key: {s}", .{entry.key_ptr.*});
-    }
-
-    return true;
-}
-
-fn check_type(node: std.json.ObjectMap, data: std.json.Value, type_name: []const u8, report: bool) !bool {
+/// check the type of a single node. Set report to false if multiple types are to be checked.
+fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Errors, stack: Stack) !void {
     if (std.mem.eql(u8, type_name, "object")) {
-        return try check_object(node, data, report);
+        if (data != .object) {
+            if (errors) |e| {
+                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "object", @tagName(data)));
+            }
+        }
+        return;
     }
 
     if (std.mem.eql(u8, type_name, "string")) {
         if (data != .string) {
-            if (report) {
-                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "string", @tagName(data) });
+            if (errors) |e| {
+                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "string", @tagName(data)));
             }
-            return false;
         }
-        return true;
+        return;
     }
 
     if (std.mem.eql(u8, type_name, "integer")) {
         // match any number with a zero fractional part
-        return check_integer(node, data, report);
+        switch (data) {
+            .integer => {},
+            .float => {
+                // float with zero fractional part is an integer
+                const int: i64 = @intFromFloat(data.float);
+                const float: f64 = @floatFromInt(int);
+                if (data.float != float) {
+                    if (errors) |e| {
+                        try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "integer", "float"));
+                    }
+                }
+            },
+            else => {
+                if (errors) |e| {
+                    try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "integer", @tagName(data)));
+                }
+            },
+        }
+        return;
     }
 
     if (std.mem.eql(u8, type_name, "number")) {
-        return check_number(node, data, report);
+        if (data != .integer or data != .float) {
+            if (errors) |e| {
+                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "number", @tagName(data)));
+            }
+        }
+        return;
     }
 
     if (std.mem.eql(u8, type_name, "array")) {
         if (data != .array) {
-            if (report) {
-                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "array", @tagName(data) });
+            if (errors) |e| {
+                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "array", @tagName(data)));
             }
-            return false;
         }
-
-        return true;
+        return;
     }
 
     if (std.mem.eql(u8, type_name, "boolean")) {
         if (data != .bool) {
-            if (report) {
-                std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "boolean", @tagName(data) });
+            if (errors) |e| {
+                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "boolean", @tagName(data)));
             }
-            return false;
         }
-
-        return true;
+        return;
     }
 
     if (std.mem.eql(u8, type_name, "null")) {
         if (data != .null) {
-            std.log.warn("non-compliant data given: wrong data type detected (expected: {s}, given: {s})", .{ "null", @tagName(data) });
-            return false;
+            if (errors) |e| {
+                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "null", @tagName(data)));
+            }
         }
-
-        return true;
+        return;
     }
 
-    std.debug.panic("unknown schema type: {s}", .{type_name});
+    std.debug.panic("schema error: unknown schema type: {s}", .{type_name});
 }
 
 // https://json-schema.org/implementers/interfaces#two-argument-validation
-pub fn check_node(node: std.json.ObjectMap, data: std.json.Value) !bool {
-    const node_type = node.get("type") orelse {
-        std.debug.panic("schema error: missing type key for schema node", .{});
-    };
+pub fn check_node(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+    if (node.get("type")) |t| {
+        switch (t) {
+            .string => try check_single_type(data, t.string, errors, stack.*),
+            .array => {
+                unreachable;
+                // for (t.array.items) |item| {
+                //     if (item != .string) {
+                //         std.debug.panic("schema error: type key array values must be strings (found: {s})", .{@tagName(item)});
+                //     }
+                //
+                //     try check_single_type(node, data, item.string, null)) return true;
+                // }
 
-    switch (node_type) {
-        .string => return check_type(node, data, node_type.string, true),
-        .array => {
-            for (node_type.array.items) |item| {
-                if (item != .string) {
-                    std.debug.panic("schema error: type key array values must be strings (found: {s})", .{@tagName(item)});
-                }
-
-                if (try check_type(node, data, item.string, false)) return true;
-            }
-
-            // error message
-            var buffer: [1024:0]u8 = undefined;
-            var fba = std.heap.FixedBufferAllocator.init(&buffer);
-            const allocator = fba.allocator();
-
-            var len: usize = 0;
-            for (node_type.array.items, 0..) |item, i| {
-                _ = try allocator.dupe(u8, item.string);
-                len += item.string.len;
-                if (i < node_type.array.items.len - 1) {
-                    _ = try allocator.dupe(u8, ", ");
-                    len += 2;
-                }
-            }
-
-            std.log.warn("non-compliant data given: data type did not match any of the required types (expected: [{s}], given: {s})", .{ buffer[0..len], @tagName(data) });
-
-            return false;
-        },
-        else => {
-            std.debug.panic("schema error: value of key \"type\" must be string or array (found: {s})", .{@tagName(node_type)});
-        },
+                // // error message
+                // var buffer: [1024:0]u8 = undefined;
+                // var fba = std.heap.FixedBufferAllocator.init(&buffer);
+                // const allocator = fba.allocator();
+                //
+                // var len: usize = 0;
+                // for (t.array.items, 0..) |item, i| {
+                //     _ = try allocator.dupe(u8, item.string);
+                //     len += item.string.len;
+                //     if (i < t.array.items.len - 1) {
+                //         _ = try allocator.dupe(u8, ", ");
+                //         len += 2;
+                //     }
+                // }
+                //
+                // std.log.warn("non-compliant data given: data type did not match any of the required types (expected: [{s}], given: {s})", .{ buffer[0..len], @tagName(data) });
+            },
+            else => {
+                std.debug.panic("schema error: value of key \"type\" must be string or array (found: {s})", .{@tagName(t)});
+            },
+        }
     }
-
-    return false;
 }
 
-test "example" {
-    const allocator = std.testing.allocator;
+fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8) !Errors {
+    const schema_parsed = try std.json.parseFromSlice(std.json.Value, allocator, schema, .{});
+    defer schema_parsed.deinit();
 
+    const data_parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
+    defer data_parsed.deinit();
+
+    std.debug.assert(schema_parsed.value == .object);
+    std.debug.assert(data_parsed.value == .object);
+
+    var stack = Stack.init(allocator);
+    defer stack.deinit();
+
+    var errors = Errors.init(allocator);
+
+    try check_node(schema_parsed.value.object, data_parsed.value, &stack, &errors);
+
+    return errors;
+}
+
+test "basic example" {
     const schema =
         \\{
         \\  "$id": "https://example.com/person.schema.json",
@@ -265,14 +263,73 @@ test "example" {
         \\}
     ;
 
-    const schema_parsed = try std.json.parseFromSlice(std.json.Value, allocator, schema, .{});
-    defer schema_parsed.deinit();
+    const errors = try check(std.testing.allocator, schema, data);
+    defer errors.deinit();
 
-    const data_parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
-    defer data_parsed.deinit();
+    try std.testing.expect(errors.items.len == 0);
+}
 
-    std.debug.assert(schema_parsed.value == .object);
-    std.debug.assert(data_parsed.value == .object);
+test "complex object with nested properties" {
+    const schema =
+        \\{
+        \\  "$id": "https://example.com/complex-object.schema.json",
+        \\  "$schema": "https://json-schema.org/draft/2020-12/schema",
+        \\  "title": "Complex Object",
+        \\  "type": "object",
+        \\  "properties": {
+        \\    "name": {
+        \\      "type": "string"
+        \\    },
+        \\    "age": {
+        \\      "type": "integer",
+        \\      "minimum": 0
+        \\    },
+        \\    "address": {
+        \\      "type": "object",
+        \\      "properties": {
+        \\        "street": {
+        \\          "type": "string"
+        \\        },
+        \\        "city": {
+        \\          "type": "string"
+        \\        },
+        \\        "state": {
+        \\          "type": "string"
+        \\        },
+        \\        "postalCode": {
+        \\          "type": "string",
+        \\          "pattern": "\\d{5}"
+        \\        }
+        \\      },
+        \\      "required": ["street", "city", "state", "postalCode"]
+        \\    },
+        \\    "hobbies": {
+        \\      "type": "array",
+        \\      "items": {
+        \\        "type": "string"
+        \\      }
+        \\    }
+        \\  },
+        \\  "required": ["name", "age"]
+        \\}
+    ;
 
-    try std.testing.expect(try check_node(schema_parsed.value.object, data_parsed.value));
+    const data =
+        \\{
+        \\  "name": "John Doe",
+        \\  "age": 25,
+        \\  "address": {
+        \\    "street": "123 Main St",
+        \\    "city": "New York",
+        \\    "state": "NY",
+        \\    "postalCode": "10001"
+        \\  },
+        \\  "hobbies": ["reading", "running"]
+        \\}
+    ;
+
+    const errors = try check(std.testing.allocator, schema, data);
+    defer errors.deinit();
+
+    try std.testing.expect(errors.items.len == 0);
 }
