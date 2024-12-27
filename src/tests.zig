@@ -53,7 +53,16 @@ test "read test suite" {
             const test_name = t.object.get("description").?.string;
             const data = t.object.get("data").?;
             const expected = t.object.get("valid").?.bool;
-            const actual = try jsonSchema.check_node(schema.object, data);
+
+            var stack = jsonSchema.Stack.init(allocator);
+            defer stack.deinit();
+
+            var errors = jsonSchema.Errors.init(allocator);
+            defer errors.deinit();
+
+            try jsonSchema.check_node(schema.object, data, &stack, &errors);
+
+            const actual = errors.items.len > 0;
 
             try run_test(expected, actual, case_name, test_name, schema, data);
         }

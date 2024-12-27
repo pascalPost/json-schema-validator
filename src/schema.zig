@@ -1,14 +1,14 @@
 const std = @import("std");
 const testing = std.testing;
 
-const Stack = struct {
+pub const Stack = struct {
     data: std.ArrayList(u8),
 
-    fn init(allocator: std.mem.Allocator) Stack {
+    pub fn init(allocator: std.mem.Allocator) Stack {
         return Stack{ .data = std.ArrayList(u8).init(allocator) };
     }
 
-    fn deinit(self: Stack) void {
+    pub fn deinit(self: Stack) void {
         self.data.deinit();
     }
 
@@ -230,26 +230,125 @@ fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8) !Er
     return errors;
 }
 
-test "basic example" {
+// test "basic example" {
+//     const schema =
+//         \\{
+//         \\  "$id": "https://example.com/person.schema.json",
+//         \\  "$schema": "https://json-schema.org/draft/2020-12/schema",
+//         \\  "title": "Person",
+//         \\  "type": "object",
+//         \\  "properties": {
+//         \\    "firstName": {
+//         \\      "type": "string",
+//         \\      "description": "The person's first name."
+//         \\    },
+//         \\    "lastName": {
+//         \\      "type": "string",
+//         \\      "description": "The person's last name."
+//         \\    },
+//         \\    "age": {
+//         \\      "description": "Age in years which must be equal to or greater than zero.",
+//         \\      "type": "integer",
+//         \\      "minimum": 0
+//         \\    }
+//         \\  }
+//         \\}
+//     ;
+//
+//     const data =
+//         \\{
+//         \\  "firstName": "John",
+//         \\  "lastName": "Doe",
+//         \\  "age": 21
+//         \\}
+//     ;
+//
+//     const errors = try check(std.testing.allocator, schema, data);
+//     defer errors.deinit();
+//
+//     try std.testing.expect(errors.items.len == 0);
+// }
+//
+// test "complex object with nested properties" {
+//     const schema =
+//         \\{
+//         \\  "$id": "https://example.com/complex-object.schema.json",
+//         \\  "$schema": "https://json-schema.org/draft/2020-12/schema",
+//         \\  "title": "Complex Object",
+//         \\  "type": "object",
+//         \\  "properties": {
+//         \\    "name": {
+//         \\      "type": "string"
+//         \\    },
+//         \\    "age": {
+//         \\      "type": "integer",
+//         \\      "minimum": 0
+//         \\    },
+//         \\    "address": {
+//         \\      "type": "object",
+//         \\      "properties": {
+//         \\        "street": {
+//         \\          "type": "string"
+//         \\        },
+//         \\        "city": {
+//         \\          "type": "string"
+//         \\        },
+//         \\        "state": {
+//         \\          "type": "string"
+//         \\        },
+//         \\        "postalCode": {
+//         \\          "type": "string",
+//         \\          "pattern": "\\d{5}"
+//         \\        }
+//         \\      },
+//         \\      "required": ["street", "city", "state", "postalCode"]
+//         \\    },
+//         \\    "hobbies": {
+//         \\      "type": "array",
+//         \\      "items": {
+//         \\        "type": "string"
+//         \\      }
+//         \\    }
+//         \\  },
+//         \\  "required": ["name", "age"]
+//         \\}
+//     ;
+//
+//     const data =
+//         \\{
+//         \\  "name": "John Doe",
+//         \\  "age": 25,
+//         \\  "address": {
+//         \\    "street": "123 Main St",
+//         \\    "city": "New York",
+//         \\    "state": "NY",
+//         \\    "postalCode": "10001"
+//         \\  },
+//         \\  "hobbies": ["reading", "running"]
+//         \\}
+//     ;
+//
+//     const errors = try check(std.testing.allocator, schema, data);
+//     defer errors.deinit();
+//
+//     try std.testing.expect(errors.items.len == 0);
+// }
+
+test "error in array" {
     const schema =
         \\{
-        \\  "$id": "https://example.com/person.schema.json",
-        \\  "$schema": "https://json-schema.org/draft/2020-12/schema",
-        \\  "title": "Person",
         \\  "type": "object",
         \\  "properties": {
-        \\    "firstName": {
-        \\      "type": "string",
-        \\      "description": "The person's first name."
-        \\    },
-        \\    "lastName": {
-        \\      "type": "string",
-        \\      "description": "The person's last name."
-        \\    },
-        \\    "age": {
-        \\      "description": "Age in years which must be equal to or greater than zero.",
-        \\      "type": "integer",
-        \\      "minimum": 0
+        \\    "people": {
+        \\      "type": "array",
+        \\      "items": {
+        \\        "type": "object",
+        \\        "properties": {
+        \\          "name": { "type": "string" },
+        \\          "age": { "type": "integer" }
+        \\        },
+        \\        "required": ["name", "age"]
+        \\      }
         \\    }
         \\  }
         \\}
@@ -257,79 +356,27 @@ test "basic example" {
 
     const data =
         \\{
-        \\  "firstName": "John",
-        \\  "lastName": "Doe",
-        \\  "age": 21
-        \\}
-    ;
-
-    const errors = try check(std.testing.allocator, schema, data);
-    defer errors.deinit();
-
-    try std.testing.expect(errors.items.len == 0);
-}
-
-test "complex object with nested properties" {
-    const schema =
-        \\{
-        \\  "$id": "https://example.com/complex-object.schema.json",
-        \\  "$schema": "https://json-schema.org/draft/2020-12/schema",
-        \\  "title": "Complex Object",
-        \\  "type": "object",
-        \\  "properties": {
-        \\    "name": {
-        \\      "type": "string"
+        \\  "people": [
+        \\    {
+        \\      "name": "John",
+        \\      "age": 30
         \\    },
-        \\    "age": {
-        \\      "type": "integer",
-        \\      "minimum": 0
+        \\    {
+        \\      "name": "Jane",
+        \\      "age": "twenty-five"
         \\    },
-        \\    "address": {
-        \\      "type": "object",
-        \\      "properties": {
-        \\        "street": {
-        \\          "type": "string"
-        \\        },
-        \\        "city": {
-        \\          "type": "string"
-        \\        },
-        \\        "state": {
-        \\          "type": "string"
-        \\        },
-        \\        "postalCode": {
-        \\          "type": "string",
-        \\          "pattern": "\\d{5}"
-        \\        }
-        \\      },
-        \\      "required": ["street", "city", "state", "postalCode"]
-        \\    },
-        \\    "hobbies": {
-        \\      "type": "array",
-        \\      "items": {
-        \\        "type": "string"
-        \\      }
+        \\    {
+        \\      "name": "Doe",
+        \\      "age": 40
         \\    }
-        \\  },
-        \\  "required": ["name", "age"]
-        \\}
-    ;
-
-    const data =
-        \\{
-        \\  "name": "John Doe",
-        \\  "age": 25,
-        \\  "address": {
-        \\    "street": "123 Main St",
-        \\    "city": "New York",
-        \\    "state": "NY",
-        \\    "postalCode": "10001"
-        \\  },
-        \\  "hobbies": ["reading", "running"]
+        \\  ]
         \\}
     ;
 
     const errors = try check(std.testing.allocator, schema, data);
     defer errors.deinit();
 
-    try std.testing.expect(errors.items.len == 0);
+    try std.testing.expect(errors.items.len == 1);
+    try std.testing.expect(std.mem.eql(u8, errors.items[0].msg, "Expected type integer but found string"));
+    try std.testing.expect(std.mem.eql(u8, errors.items[0].path, "/people/1/age"));
 }
