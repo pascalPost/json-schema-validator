@@ -25,10 +25,6 @@ pub const Stack = struct {
     }
 };
 
-// TODO : split into two steps
-// 1) validate the given schema file
-// 2) validate the given data based on the validated schema
-
 // const SchemaErrorType = enum {
 //     typeMismatch,
 //     missingRequiredProperty,
@@ -60,12 +56,12 @@ const Error = struct {
 
 pub const Errors = std.ArrayList(Error);
 
-fn create_error_type_mismatch(allocator: std.mem.Allocator, path: []const u8, expected: []const u8, found: []const u8) !Error {
+fn createErrorTypeMismatch(allocator: std.mem.Allocator, path: []const u8, expected: []const u8, found: []const u8) !Error {
     const msg = try std.fmt.allocPrint(allocator, "Expected type {s} but found {s}", .{ expected, found });
     return .{ .path = path, .msg = msg };
 }
 
-fn create_error_type_array_mismatch(allocator: std.mem.Allocator, path: []const u8) Error {
+fn createErrorTypeArrayMismatch(allocator: std.mem.Allocator, path: []const u8) Error {
     // // error message
     // var buffer: [1024:0]u8 = undefined;
     // var fba = std.heap.FixedBufferAllocator.init(&buffer);
@@ -90,11 +86,11 @@ fn create_error_type_array_mismatch(allocator: std.mem.Allocator, path: []const 
 }
 
 /// check the type of a single node. Set report to false if multiple types are to be checked.
-fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Errors, stack: Stack) !void {
+fn checkSingleType(data: std.json.Value, type_name: []const u8, errors: ?*Errors, stack: Stack) !void {
     if (std.mem.eql(u8, type_name, "object")) {
         if (data != .object) {
             if (errors) |e| {
-                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "object", @tagName(data)));
+                try e.append(try createErrorTypeMismatch(e.allocator, stack.path(), "object", @tagName(data)));
             }
         }
         return;
@@ -103,7 +99,7 @@ fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Erro
     if (std.mem.eql(u8, type_name, "string")) {
         if (data != .string) {
             if (errors) |e| {
-                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "string", @tagName(data)));
+                try e.append(try createErrorTypeMismatch(e.allocator, stack.path(), "string", @tagName(data)));
             }
         }
         return;
@@ -119,13 +115,13 @@ fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Erro
                 const float: f64 = @floatFromInt(int);
                 if (data.float != float) {
                     if (errors) |e| {
-                        try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "integer", "float"));
+                        try e.append(try createErrorTypeMismatch(e.allocator, stack.path(), "integer", "float"));
                     }
                 }
             },
             else => {
                 if (errors) |e| {
-                    try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "integer", @tagName(data)));
+                    try e.append(try createErrorTypeMismatch(e.allocator, stack.path(), "integer", @tagName(data)));
                 }
             },
         }
@@ -135,7 +131,7 @@ fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Erro
     if (std.mem.eql(u8, type_name, "number")) {
         if (data != .integer and data != .float) {
             if (errors) |e| {
-                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "number", @tagName(data)));
+                try e.append(try createErrorTypeMismatch(e.allocator, stack.path(), "number", @tagName(data)));
             }
         }
         return;
@@ -144,7 +140,7 @@ fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Erro
     if (std.mem.eql(u8, type_name, "array")) {
         if (data != .array) {
             if (errors) |e| {
-                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "array", @tagName(data)));
+                try e.append(try createErrorTypeMismatch(e.allocator, stack.path(), "array", @tagName(data)));
             }
         }
         return;
@@ -153,7 +149,7 @@ fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Erro
     if (std.mem.eql(u8, type_name, "boolean")) {
         if (data != .bool) {
             if (errors) |e| {
-                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "boolean", @tagName(data)));
+                try e.append(try createErrorTypeMismatch(e.allocator, stack.path(), "boolean", @tagName(data)));
             }
         }
         return;
@@ -162,7 +158,7 @@ fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Erro
     if (std.mem.eql(u8, type_name, "null")) {
         if (data != .null) {
             if (errors) |e| {
-                try e.append(try create_error_type_mismatch(e.allocator, stack.path(), "null", @tagName(data)));
+                try e.append(try createErrorTypeMismatch(e.allocator, stack.path(), "null", @tagName(data)));
             }
         }
         return;
@@ -172,10 +168,10 @@ fn check_single_type(data: std.json.Value, type_name: []const u8, errors: ?*Erro
 }
 
 // https://json-schema.org/implementers/interfaces#two-argument-validation
-pub fn check_node(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
     if (node.get("type")) |t| {
         switch (t) {
-            .string => try check_single_type(data, t.string, errors, stack.*),
+            .string => try checkSingleType(data, t.string, errors, stack.*),
             .array => {
                 unreachable;
                 // for (t.array.items) |item| {
@@ -225,7 +221,7 @@ fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8) !Er
 
     var errors = Errors.init(allocator);
 
-    try check_node(schema_parsed.value.object, data_parsed.value, &stack, &errors);
+    try checkNode(schema_parsed.value.object, data_parsed.value, &stack, &errors);
 
     return errors;
 }

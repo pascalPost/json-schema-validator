@@ -69,7 +69,7 @@ test "run test suite" {
                 var errors = jsonSchema.Errors.init(allocator);
                 defer errors.deinit();
 
-                try jsonSchema.check_node(schema.object, data, &stack, &errors);
+                try jsonSchema.checkNode(schema.object, data, &stack, &errors);
 
                 const actual = errors.items.len == 0;
 
