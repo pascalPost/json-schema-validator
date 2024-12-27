@@ -66,8 +66,10 @@ test "run test suite" {
                 var stack = jsonSchema.Stack.init(allocator);
                 defer stack.deinit();
 
-                var errors = jsonSchema.Errors.init(allocator);
-                defer errors.deinit();
+                var arena = std.heap.ArenaAllocator.init(allocator);
+                defer arena.deinit();
+
+                var errors = jsonSchema.Errors.init(arena.allocator());
 
                 try jsonSchema.checkNode(schema.object, data, &stack, &errors);
 
