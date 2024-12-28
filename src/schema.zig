@@ -1,6 +1,9 @@
 const std = @import("std");
 const testing = std.testing;
 
+// TODO enhance schema logging (schema error, schema warning)
+// TODO enhance validation errors (compare to other implementations)
+
 pub const Stack = struct {
     data: std.ArrayList(u8),
 
@@ -30,7 +33,63 @@ const Error = struct {
     msg: []const u8,
 };
 
-pub const Errors = std.ArrayList(Error);
+pub const Errors = struct {
+    arena: std.heap.ArenaAllocator,
+    data: std.ArrayListUnmanaged(Error) = .{},
+
+    pub fn init(allocator: std.mem.Allocator) Errors {
+        return .{
+            .arena = std.heap.ArenaAllocator.init(allocator),
+        };
+    }
+
+    pub fn deinit(self: Errors) void {
+        self.arena.deinit();
+    }
+
+    fn append(self: *Errors, err: Error) !void {
+        try self.data.append(self.arena.allocator(), err);
+    }
+
+    pub fn empty(self: Errors) bool {
+        return self.data.items.len == 0;
+    }
+};
+
+/// eql checks the equality of two std.json.Value
+fn eql(a: std.json.Value, b: std.json.Value) bool {
+    const Tag = std.meta.Tag(std.json.Value);
+    if (@as(Tag, a) != @as(Tag, b)) return false;
+
+    return switch (a) {
+        .null => true, // b is checked for null above.
+        .bool => a.bool == b.bool,
+        .integer => a.integer == b.integer,
+        .float => a.float == b.float,
+        .number_string => std.mem.eql(u8, a.number_string, b.number_string),
+        .string => std.mem.eql(u8, a.string, b.string),
+        .array => blk: {
+            if (a.array.items.len != b.array.items.len) break :blk false;
+            for (a.array.items, b.array.items) |item_1, item_2| {
+                if (!eql(item_1, item_2)) break :blk false;
+            }
+            break :blk true;
+        },
+        .object => blk: {
+            if (a.object.count() != b.object.count()) break :blk false;
+            var it = a.object.iterator();
+            while (it.next()) |entry| {
+                const key = entry.key_ptr.*;
+                const value = entry.value_ptr.*;
+                if (b.object.get(key)) |other_value| {
+                    if (!eql(value, other_value)) break :blk false;
+                } else break :blk false;
+            }
+
+            break :blk true;
+        },
+    };
+}
 
 fn checkType(data: std.json.Value, type_name: []const u8) bool {
     if (std.mem.eql(u8, type_name, "object")) {
@@ -74,20 +133,42 @@ fn checkType(data: std.json.Value, type_name: []const u8) bool {
     std.debug.panic("schema error: unknown schema type: {s}", .{type_name});
 }
 
+fn checkEnum(data: std.json.Value, required_values: []const std.json.Value) bool {
+    for (required_values) |value| {
+        if (eql(data, value)) return true;
+    }
+    return false;
+}
+
+fn addEnumError(errors: *Errors, path: []const u8, invalid_value: std.json.Value, allowed_values: std.json.Value) !void {
+    std.debug.assert(allowed_values == .array);
+
+    var msg = std.ArrayList(u8).init(errors.arena.allocator());
+    defer msg.deinit();
+
+    const writer = msg.writer();
+    try writer.writeAll("instance value (");
+    try std.json.stringify(invalid_value, .{}, writer);
+    try writer.writeAll(") not found in enum (possible values: ");
+    try std.json.stringify(allowed_values, .{}, writer);
+    try writer.writeAll(")");
+    try errors.append(.{ .path = path, .msg = try msg.toOwnedSlice() });
+}
+
 // https://json-schema.org/implementers/interfaces#two-argument-validation
 pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
     if (node.get("type")) |t| {
         switch (t) {
             .string => {
                 if (!checkType(data, t.string)) {
-                    const msg = try std.fmt.allocPrint(errors.allocator, "Expected type {s} but found {s}", .{ t.string, @tagName(data) });
+                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Expected type {s} but found {s}", .{ t.string, @tagName(data) });
                     try errors.append(.{ .path = stack.path(), .msg = msg });
                 }
             },
-            .array => {
+            .array => blk: {
                 for (t.array.items) |item| {
                     if (item != .string) std.debug.panic("schema error: type key array values must be strings (found: {s})", .{@tagName(item)});
-                    if (checkType(data, item.string)) return;
+                    if (checkType(data, item.string)) break :blk;
                 }
 
                 // error message
@@ -103,7 +184,7 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
                         len += 2;
                     }
                 }
-                const msg = try std.fmt.allocPrint(errors.allocator, "Expected one of types [{s}] but found {s}", .{ buffer[0..len], @tagName(data) });
+                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Expected one of types [{s}] but found {s}", .{ buffer[0..len], @tagName(data) });
                 try errors.append(.{ .path = stack.path(), .msg = msg });
             },
             else => {
@@ -111,9 +192,20 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
             },
         }
     }
+
+    if (node.get("enum")) |n| {
+        switch (n) {
+            .array => |a| {
+                if (a.items.len == 0) std.log.warn("schema warning: the enum array should have at lease one elmenet, but found 0 ({s}).", .{stack.path()});
+                // NOTE: we do not check that elements are unique
+                if (!checkEnum(data, a.items)) try addEnumError(errors, stack.path(), data, n);
+            },
+            else => std.debug.panic("schema error: value of key \"enum\" must be array (found: {s})", .{@tagName(n)}),
+        }
+    }
 }
 
-fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8) !Errors {
+pub fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8) !Errors {
     const schema_parsed = try std.json.parseFromSlice(std.json.Value, allocator, schema, .{});
     defer schema_parsed.deinit();
 
@@ -169,7 +261,7 @@ test "basic example" {
     const errors = try check(std.testing.allocator, schema, data);
     defer errors.deinit();
 
-    try std.testing.expect(errors.items.len == 0);
+    try std.testing.expect(errors.empty());
 }
 
 test "complex object with nested properties" {
@@ -234,7 +326,7 @@ test "complex object with nested properties" {
     const errors = try check(std.testing.allocator, schema, data);
     defer errors.deinit();
 
-    try std.testing.expect(errors.items.len == 0);
+    try std.testing.expect(errors.empty());
 }
 
 // test "error in array" {

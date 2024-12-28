@@ -34,6 +34,7 @@ fn runTest(expected: bool, actual: bool, file: []const u8, case_name: []const u8
 
 test "run test suite" {
     const files = [_][]const u8{
+        "enum.json",
         "type.json",
     };
     const allocator = std.testing.allocator;
@@ -73,7 +74,7 @@ test "run test suite" {
 
                 try jsonSchema.checkNode(schema.object, data, &stack, &errors);
 
-                const actual = errors.items.len == 0;
+                const actual = errors.empty();
 
                 try runTest(expected, actual, file_path, case_name, test_name, schema, data);
             }
