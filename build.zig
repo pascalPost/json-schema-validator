@@ -19,10 +19,14 @@ pub fn build(b: *std.Build) void {
         .name = "json-schema-validator",
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("src/schema.zig"),
         .target = target,
         .optimize = optimize,
     });
+
+    // needed for regex engine
+    lib.addCSourceFile(.{ .file = b.path("src/regex.cpp") });
+    lib.linkLibCpp();
 
     // This declares intent for the library to be installed into the standard
     // location when the user invokes the "install" step (the default step when
@@ -36,6 +40,10 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    // needed for regex engine
+    lib_unit_tests.addCSourceFile(.{ .file = b.path("src/regex.cpp") });
+    lib_unit_tests.linkLibCpp();
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 

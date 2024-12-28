@@ -1,4 +1,6 @@
 const std = @import("std");
+const Regex = @import("regex.zig").Regex;
+
 const testing = std.testing;
 
 // TODO enhance schema logging (schema error, schema warning)
@@ -16,7 +18,7 @@ pub const Stack = struct {
     }
 
     fn push(self: *Stack, p: []const u8) !void {
-        try self.data.append(p);
+        try self.data.appendSlice(p);
     }
 
     fn pop(self: *Stack) void {
@@ -202,6 +204,54 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
             },
             else => std.debug.panic("schema error: value of key \"enum\" must be array (found: {s})", .{@tagName(n)}),
         }
+    }
+
+    switch (data) {
+        .object => {
+            if (node.get("patternProperties")) |p| {
+                std.debug.assert(p == .object);
+
+                var pattern_it = p.object.iterator();
+                while (pattern_it.next()) |entry| {
+                    const pattern = entry.key_ptr.*;
+                    const schema = entry.value_ptr.*;
+
+                    std.debug.assert(schema == .object);
+
+                    const regex = Regex.init(pattern);
+                    defer regex.deinit();
+
+                    var data_it = data.object.iterator();
+                    while (data_it.next()) |data_entry| {
+                        const key = data_entry.key_ptr.*;
+                        const value = data_entry.value_ptr.*;
+
+                        if (regex.match(key)) {
+                            try stack.push(key);
+                            try checkNode(schema.object, value, stack, errors);
+                            stack.pop();
+                        }
+                    }
+                }
+            }
+
+            if (node.get("properties")) |p| {
+                std.debug.assert(p == .object);
+
+                var it = p.object.iterator();
+                while (it.next()) |entry| {
+                    const key = entry.key_ptr.*;
+                    const value = entry.value_ptr.*;
+
+                    try stack.push(key);
+                    if (data.object.get(key)) |d| {
+                        try checkNode(value.object, d, stack, errors);
+                    }
+                    stack.pop();
+                }
+            }
+        },
+        else => {},
     }
 }
 
