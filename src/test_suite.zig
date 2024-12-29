@@ -39,9 +39,9 @@ test "run test suite" {
         "exclusiveMinimum.json",
         "maximum.json",
         "minimum.json",
+        "patternProperties.json",
         // "enum.json",
         // "properties.json",
-        // "patternProperties.json",
     };
     const allocator = std.testing.allocator;
     var file_path_buf: [100]u8 = undefined;

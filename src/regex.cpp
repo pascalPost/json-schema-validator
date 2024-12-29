@@ -24,7 +24,7 @@ bool matchRegex(const RegexWrapper *const regex, const char *str, ulong count) {
   if (!regex)
     return false;
   try {
-    return std::regex_match(std::string{str, count}, regex->regex);
+    return std::regex_search(std::string{str, count}, regex->regex);
   } catch (...) {
     return false;
   }

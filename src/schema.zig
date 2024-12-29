@@ -175,9 +175,20 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
                         const value = data_entry.value_ptr.*;
 
                         if (regex.match(key)) {
-                            try stack.push(key);
-                            try checkNode(schema.object, value, stack, errors);
-                            stack.pop();
+                            switch (schema) {
+                                .null => {},
+                                .bool => |b| {
+                                    if (!b) {
+                                        try errors.append(.{ .path = stack.path(), .msg = "Invalid object (pattern property matching schema false)" });
+                                    }
+                                },
+                                .object => |obj| {
+                                    try stack.push(key);
+                                    try checkNode(obj, value, stack, errors);
+                                    stack.pop();
+                                },
+                                else => unreachable,
+                            }
                         }
                     }
                 }
