@@ -25,7 +25,7 @@ const allChecks = [_]struct { name: []const u8, check: *const fn (f64, f64) bool
     .{ .name = "exclusiveMinimum", .check = checkExclusiveMinimum },
 };
 
-fn extremaChecks(node: std.json.ObjectMap, data_value: f64, stack: *Stack, errors: *Errors) !void {
+pub fn extremaChecks(node: std.json.ObjectMap, data_value: f64, stack: *Stack, errors: *Errors) !void {
     for (allChecks) |c| {
         if (node.get(c.name)) |value| {
             const extreme_value: f64 = switch (value) {
@@ -40,14 +40,5 @@ fn extremaChecks(node: std.json.ObjectMap, data_value: f64, stack: *Stack, error
                 try errors.append(.{ .path = stack.path(), .msg = msg });
             }
         }
-    }
-}
-
-pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
-    switch (data) {
-        .integer => |i| try extremaChecks(node, @floatFromInt(i), stack, errors),
-        .float => |f| try extremaChecks(node, f, stack, errors),
-        .number_string => unreachable,
-        else => {},
     }
 }
