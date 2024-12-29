@@ -49,6 +49,10 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             else => std.debug.panic("schema error: value of key \"enum\" must be array (found: {s})", .{@tagName(n)}),
         }
     }
+
+    if (node.get("const")) |n| {
+        if (!eql(data, n)) try errors.append(.{ .path = stack.path(), .msg = "Value does not match const definition" });
+    }
 }
 
 fn checkType(data: std.json.Value, type_name: []const u8) bool {
@@ -117,6 +121,26 @@ fn addEnumError(errors: *Errors, path: []const u8, invalid_value: std.json.Value
 
 /// eql checks the equality of two std.json.Value
 fn eql(a: std.json.Value, b: std.json.Value) bool {
+
+    // numeric types are equal if the values are equal
+    const a_opt_float: ?f64 = switch (a) {
+        .integer => |i| @floatFromInt(i),
+        .float => |f| f,
+        .number_string => unreachable,
+        else => null,
+    };
+
+    if (a_opt_float) |a_float| {
+        const b_float: f64 = switch (b) {
+            .integer => |i| @floatFromInt(i),
+            .float => |f| f,
+            .number_string => unreachable,
+            else => return false,
+        };
+
+        if (a_float == b_float) return true else return false;
+    }
+
     const Tag = std.meta.Tag(std.json.Value);
     if (@as(Tag, a) != @as(Tag, b)) return false;
 

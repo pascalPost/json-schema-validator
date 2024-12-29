@@ -35,6 +35,7 @@ fn runTest(expected: bool, actual: bool, file: []const u8, case_name: []const u8
 test "run test suite" {
     const files = [_][]const u8{
         "type.json",
+        "const.json",
         "exclusiveMaximum.json",
         "exclusiveMinimum.json",
         "maximum.json",
