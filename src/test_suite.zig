@@ -40,6 +40,7 @@ test "run test suite" {
         "maximum.json",
         "minimum.json",
         "patternProperties.json",
+        "additionalProperties.json",
         // "enum.json",
         // "properties.json",
     };
