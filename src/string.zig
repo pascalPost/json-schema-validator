@@ -22,6 +22,22 @@ pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors:
             try errors.append(.{ .path = stack.path(), .msg = msg });
         }
     }
+
+    if (node.get("pattern")) |pattern| {
+        switch (pattern) {
+            .string => |p| {
+                const re = Regex.init(p);
+                defer re.deinit();
+                if (!re.match(data)) {
+                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String does not match pattern \"{}\"", .{pattern});
+                    try errors.append(.{ .path = stack.path(), .msg = msg });
+                }
+            },
+            else => {
+                std.debug.panic("schema error: value of key \"pattern\" must be string (found: {s})", .{@tagName(pattern)});
+            },
+        }
+    }
 }
 
 fn lengthCheck(comptime check: enum { min, max }, value: std.json.Value, data: []const u8) !bool {
