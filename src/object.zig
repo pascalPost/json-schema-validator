@@ -4,7 +4,41 @@ const Errors = @import("errors.zig").Errors;
 const Regex = @import("regex.zig").Regex;
 const checkNode = @import("schema.zig").checkNode;
 
+fn checkMinOrMaxProperties(comptime check: enum { min, max }, min_or_max_properties: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+    const required: i64 = switch (min_or_max_properties) {
+        .integer => |i| i,
+        .float => |f| blk: {
+            const cast: i64 = @intFromFloat(f);
+            std.debug.assert(f == @as(f64, @floatFromInt(cast))); // check for integer value
+            break :blk cast;
+        },
+        .number_string => unreachable,
+        else => unreachable, // TODO add schema error
+    };
+
+    // must be a non-negative integer
+    std.debug.assert(required >= 0);
+
+    switch (check) {
+        .min => {
+            if (data.object.count() < required) {
+                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object has {d} properties, more than maximum of {d}", .{ data.object.count(), required });
+                try errors.append(.{ .path = stack.path(), .msg = msg });
+            }
+        },
+        .max => {
+            if (data.object.count() > required) {
+                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object has {d} properties, lenn than minimum of {d}", .{ data.object.count(), required });
+                try errors.append(.{ .path = stack.path(), .msg = msg });
+            }
+        },
+    }
+}
+
 pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+    if (node.get("maxProperties")) |maxProperties| try checkMinOrMaxProperties(.max, maxProperties, data, stack, errors);
+    if (node.get("minProperties")) |minProperties| try checkMinOrMaxProperties(.min, minProperties, data, stack, errors);
+
     if (node.get("properties")) |properties| {
         std.debug.assert(properties == .object);
 

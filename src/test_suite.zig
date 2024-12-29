@@ -41,6 +41,8 @@ test "run test suite" {
         "minimum.json",
         "patternProperties.json",
         "additionalProperties.json",
+        "maxProperties.json",
+        "minProperties.json",
         // "enum.json",
         // "properties.json",
     };
