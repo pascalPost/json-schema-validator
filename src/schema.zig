@@ -4,6 +4,7 @@ pub const Errors = @import("errors.zig").Errors;
 const generic = @import("generic.zig");
 const numeric = @import("numeric.zig");
 const object = @import("object.zig");
+const string = @import("string.zig");
 
 const testing = std.testing;
 
@@ -17,6 +18,7 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
         .integer => |i| try numeric.checks(i64, node, i, stack, errors),
         .float => |f| try numeric.checks(f64, node, f, stack, errors),
         .number_string => unreachable,
+        .string => |str| try string.checks(node, str, stack, errors),
         .object => try object.checks(node, data, stack, errors),
         else => {},
     }

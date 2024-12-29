@@ -45,6 +45,7 @@ test "run test suite" {
         "additionalProperties.json",
         "maxProperties.json",
         "minProperties.json",
+        "maxLength.json",
         // "enum.json",
         // "properties.json",
     };
