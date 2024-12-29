@@ -1,15 +1,15 @@
 const std = @import("std");
 
 const RegexWrapper = opaque {};
-extern fn createRegex([*]const u8) callconv(.C) *RegexWrapper;
+extern fn createRegex([*]const u8, c_ulong) callconv(.C) *RegexWrapper;
 extern fn destroyRegex(*RegexWrapper) callconv(.C) void;
-extern fn matchRegex(*RegexWrapper, [*]const u8) callconv(.C) bool;
+extern fn matchRegex(*RegexWrapper, [*]const u8, c_ulong) callconv(.C) bool;
 
 pub const Regex = struct {
     regex: *RegexWrapper,
 
     pub fn init(pattern: []const u8) Regex {
-        return .{ .regex = createRegex(pattern.ptr) };
+        return .{ .regex = createRegex(pattern.ptr, pattern.len) };
     }
 
     pub fn deinit(self: Regex) void {
@@ -17,7 +17,7 @@ pub const Regex = struct {
     }
 
     pub fn match(self: Regex, text: []const u8) bool {
-        return matchRegex(self.regex, text.ptr);
+        return matchRegex(self.regex, text.ptr, text.len);
     }
 };
 

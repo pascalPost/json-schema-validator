@@ -216,8 +216,6 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
                     const pattern = entry.key_ptr.*;
                     const schema = entry.value_ptr.*;
 
-                    std.debug.assert(schema == .object);
-
                     const regex = Regex.init(pattern);
                     defer regex.deinit();
 
