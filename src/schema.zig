@@ -1,62 +1,10 @@
 const std = @import("std");
+pub const Stack = @import("stack.zig").Stack;
 const Regex = @import("regex.zig").Regex;
+pub const Errors = @import("errors.zig").Errors;
+const numeric = @import("numeric.zig");
 
 const testing = std.testing;
-
-// TODO enhance schema logging (schema error, schema warning)
-// TODO enhance validation errors (compare to other implementations)
-
-pub const Stack = struct {
-    data: std.ArrayList(u8),
-
-    pub fn init(allocator: std.mem.Allocator) Stack {
-        return Stack{ .data = std.ArrayList(u8).init(allocator) };
-    }
-
-    pub fn deinit(self: Stack) void {
-        self.data.deinit();
-    }
-
-    fn push(self: *Stack, p: []const u8) !void {
-        try self.data.appendSlice(p);
-    }
-
-    fn pop(self: *Stack) void {
-        _ = self.data.pop();
-    }
-
-    fn path(self: Stack) []const u8 {
-        return self.data.items;
-    }
-};
-
-const Error = struct {
-    path: []const u8,
-    msg: []const u8,
-};
-
-pub const Errors = struct {
-    arena: std.heap.ArenaAllocator,
-    data: std.ArrayListUnmanaged(Error) = .{},
-
-    pub fn init(allocator: std.mem.Allocator) Errors {
-        return .{
-            .arena = std.heap.ArenaAllocator.init(allocator),
-        };
-    }
-
-    pub fn deinit(self: Errors) void {
-        self.arena.deinit();
-    }
-
-    fn append(self: *Errors, err: Error) !void {
-        try self.data.append(self.arena.allocator(), err);
-    }
-
-    pub fn empty(self: Errors) bool {
-        return self.data.items.len == 0;
-    }
-};
 
 /// eql checks the equality of two std.json.Value
 fn eql(a: std.json.Value, b: std.json.Value) bool {
@@ -205,6 +153,8 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
             else => std.debug.panic("schema error: value of key \"enum\" must be array (found: {s})", .{@tagName(n)}),
         }
     }
+
+    try numeric.checks(node, data, stack, errors);
 
     switch (data) {
         .object => {
