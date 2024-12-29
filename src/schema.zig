@@ -14,8 +14,8 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
     try generic.checks(node, data, stack, errors);
 
     switch (data) {
-        .integer => |i| try numeric.extremaChecks(node, @floatFromInt(i), stack, errors),
-        .float => |f| try numeric.extremaChecks(node, f, stack, errors),
+        .integer => |i| try numeric.checks(i64, node, i, stack, errors),
+        .float => |f| try numeric.checks(f64, node, f, stack, errors),
         .number_string => unreachable,
         .object => try object.checks(node, data, stack, errors),
         else => {},

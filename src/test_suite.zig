@@ -39,6 +39,7 @@ test "run test suite" {
         "exclusiveMinimum.json",
         "maximum.json",
         "minimum.json",
+        "multipleOf.json",
         "patternProperties.json",
         "additionalProperties.json",
         "maxProperties.json",

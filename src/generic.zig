@@ -66,7 +66,7 @@ fn checkType(data: std.json.Value, type_name: []const u8) bool {
             .integer => return true,
             .float => {
                 // float with zero fractional part is an integer
-                const int: i64 = @intFromFloat(data.float);
+                const int: i64 = std.math.lossyCast(i64, data.float);
                 const float: f64 = @floatFromInt(int);
                 if (data.float == float) return true else return false;
             },
