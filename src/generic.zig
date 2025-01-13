@@ -16,9 +16,6 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             // handle absolute path
             const node_ref = stack.root.object;
 
-            // get node starting from root
-            if (ref_path.len > 1) unreachable;
-
             try stack.push("$ref");
 
             try checkNode(node_ref, data, stack, errors);

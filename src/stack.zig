@@ -54,6 +54,39 @@ pub const Stack = struct {
 
         return path_str;
     }
+
+    pub fn value(self: Stack, abs_path: []const u8) !?std.json.Value {
+        std.debug.assert(abs_path[0] == '#');
+        if (abs_path.len == 1) return self.root;
+
+        var it = try std.fs.path.componentIterator(abs_path[1..]);
+        var parent = self.root;
+        while (it.next()) |component| {
+            switch (parent) {
+                .object => |object| {
+                    if (object.get(component.name)) |v| {
+                        parent = v;
+                    } else {
+                        std.debug.print("could not find key {s} in object at path {s}\n", .{ component.name, component.path });
+                        return null;
+                    }
+                },
+                .array => |array| {
+                    const idx = try std.fmt.parseInt(usize, component.name, 10);
+                    if (idx >= array.items.len) {
+                        std.debug.print("requested array index {} does not exist in array at path {s}\n", .{ idx, component.path });
+                        return null;
+                    }
+                    return array.items[idx];
+                },
+                else => {
+                    std.debug.panic("given parent has no subvalues.", .{});
+                },
+            }
+        }
+
+        return parent;
+    }
 };
 
 test "stack" {
@@ -113,6 +146,9 @@ test "stack" {
         const path = try stack.path(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#", path);
+
+        const node = (try stack.value(path)).?;
+        try std.testing.expect(eql(node, stack.root));
     }
 
     try stack.push("properties");
@@ -120,6 +156,9 @@ test "stack" {
         const path = try stack.path(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties", path);
+
+        const node = (try stack.value(path)).?;
+        try std.testing.expect(eql(node, stack.root.object.get("properties").?));
     }
 
     try stack.push("address");
@@ -127,6 +166,9 @@ test "stack" {
         const path = try stack.path(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties/address", path);
+
+        const node = (try stack.value(path)).?;
+        try std.testing.expect(eql(node, stack.root.object.get("properties").?.object.get("address").?));
     }
 
     try stack.push("required");
@@ -134,6 +176,9 @@ test "stack" {
         const path = try stack.path(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties/address/required", path);
+
+        const node = (try stack.value(path)).?;
+        try std.testing.expect(eql(node, stack.root.object.get("properties").?.object.get("address").?.object.get("required").?));
     }
 
     try stack.push("1");
@@ -141,6 +186,9 @@ test "stack" {
         const path = try stack.path(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties/address/required/1", path);
+
+        const node = (try stack.value(path)).?;
+        try std.testing.expect(eql(node, stack.root.object.get("properties").?.object.get("address").?.object.get("required").?.array.items[1]));
     }
 
     stack.pop();
