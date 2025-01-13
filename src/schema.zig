@@ -34,7 +34,9 @@ pub fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8)
     std.debug.assert(schema_parsed.value == .object);
     std.debug.assert(data_parsed.value == .object);
 
-    var stack = Stack.init(allocator);
+    const stack_capacity = 100;
+
+    var stack = try Stack.init(allocator, schema_parsed.value, stack_capacity);
     defer stack.deinit();
 
     var errors = Errors.init(allocator);

@@ -12,6 +12,8 @@ pub const Errors = struct {
     arena: std.heap.ArenaAllocator,
     data: std.ArrayListUnmanaged(Error) = .{},
 
+    // TODO why is this an unmanaged list w/ an arean instead of a ArrayList (?)
+
     pub fn init(allocator: std.mem.Allocator) Errors {
         return .{
             .arena = std.heap.ArenaAllocator.init(allocator),

@@ -10,7 +10,7 @@ pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors:
             std.debug.panic("schema error: value of key \"maxLength\" must be integer (found: {s})", .{@tagName(value)});
         }) {
             const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String length {d} is longer than maximum of {}", .{ data.len, value });
-            try errors.append(.{ .path = stack.path(), .msg = msg });
+            try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
         }
     }
 
@@ -19,7 +19,7 @@ pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors:
             std.debug.panic("schema error: value of key \"minLength\" must be integer (found: {s})", .{@tagName(value)});
         }) {
             const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String length {d} is smaller than minimum of {}", .{ data.len, value });
-            try errors.append(.{ .path = stack.path(), .msg = msg });
+            try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
         }
     }
 
@@ -30,7 +30,7 @@ pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors:
                 defer re.deinit();
                 if (!re.match(data)) {
                     const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String does not match pattern \"{}\"", .{pattern});
-                    try errors.append(.{ .path = stack.path(), .msg = msg });
+                    try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
                 }
             },
             else => {

@@ -50,6 +50,7 @@ test "run test suite" {
         "pattern.json",
         // "enum.json",
         // "properties.json",
+        // "ref.json",
     };
     const allocator = std.testing.allocator;
     var file_path_buf: [100]u8 = undefined;
@@ -78,7 +79,7 @@ test "run test suite" {
                 const data = t.object.get("data").?;
                 const expected = t.object.get("valid").?.bool;
 
-                var stack = jsonSchema.Stack.init(allocator);
+                var stack = try jsonSchema.Stack.init(allocator, schema, 10);
                 defer stack.deinit();
 
                 var errors = jsonSchema.Errors.init(allocator);

@@ -1,14 +1,42 @@
 const std = @import("std");
 const Stack = @import("stack.zig").Stack;
 const Errors = @import("errors.zig").Errors;
+const checkNode = @import("schema.zig").checkNode;
+const eql = @import("value.zig").eql;
 
 pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+    if (node.get("$ref")) |ref| {
+        std.debug.assert(ref == .string);
+        const ref_path = ref.string;
+
+        std.debug.print("link: {s}\n", .{ref.string});
+
+        // check the given ref
+        if (ref_path[0] == '#') {
+            // handle absolute path
+            const node_ref = stack.root.object;
+
+            // get node starting from root
+            if (ref_path.len > 1) unreachable;
+
+            try stack.push("$ref");
+
+            try checkNode(node_ref, data, stack, errors);
+
+            stack.pop();
+
+            return;
+        } else {
+            std.debug.panic("unhandled reference type: {s}\n", .{ref_path});
+        }
+    }
+
     if (node.get("type")) |t| {
         switch (t) {
             .string => {
                 if (!checkType(data, t.string)) {
                     const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Expected type {s} but found {s}", .{ t.string, @tagName(data) });
-                    try errors.append(.{ .path = stack.path(), .msg = msg });
+                    try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
                 }
             },
             .array => blk: {
@@ -31,7 +59,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                     }
                 }
                 const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Expected one of types [{s}] but found {s}", .{ buffer[0..len], @tagName(data) });
-                try errors.append(.{ .path = stack.path(), .msg = msg });
+                try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
             },
             else => {
                 std.debug.panic("schema error: value of key \"type\" must be string or array (found: {s})", .{@tagName(t)});
@@ -42,16 +70,19 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
     if (node.get("enum")) |n| {
         switch (n) {
             .array => |a| {
-                if (a.items.len == 0) std.log.warn("schema warning: the enum array should have at lease one elmenet, but found 0 ({s}).", .{stack.path()});
+                if (a.items.len == 0) {
+                    const path = try stack.path(errors.arena.allocator());
+                    std.log.warn("schema warning: the enum array should have at lease one elmenet, but found 0 ({s}).", .{path});
+                }
                 // NOTE: we do not check that elements are unique
-                if (!checkEnum(data, a.items)) try addEnumError(errors, stack.path(), data, n);
+                if (!checkEnum(data, a.items)) try addEnumError(errors, try stack.path(errors.arena.allocator()), data, n);
             },
             else => std.debug.panic("schema error: value of key \"enum\" must be array (found: {s})", .{@tagName(n)}),
         }
     }
 
     if (node.get("const")) |n| {
-        if (!eql(data, n)) try errors.append(.{ .path = stack.path(), .msg = "Value does not match const definition" });
+        if (!eql(data, n)) try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = "Value does not match const definition" });
     }
 }
 
@@ -117,59 +148,4 @@ fn addEnumError(errors: *Errors, path: []const u8, invalid_value: std.json.Value
     try std.json.stringify(allowed_values, .{}, writer);
     try writer.writeAll(")");
     try errors.append(.{ .path = path, .msg = try msg.toOwnedSlice() });
-}
-
-/// eql checks the equality of two std.json.Value
-fn eql(a: std.json.Value, b: std.json.Value) bool {
-
-    // numeric types are equal if the values are equal
-    const a_opt_float: ?f64 = switch (a) {
-        .integer => |i| @floatFromInt(i),
-        .float => |f| f,
-        .number_string => unreachable,
-        else => null,
-    };
-
-    if (a_opt_float) |a_float| {
-        const b_float: f64 = switch (b) {
-            .integer => |i| @floatFromInt(i),
-            .float => |f| f,
-            .number_string => unreachable,
-            else => return false,
-        };
-
-        if (a_float == b_float) return true else return false;
-    }
-
-    const Tag = std.meta.Tag(std.json.Value);
-    if (@as(Tag, a) != @as(Tag, b)) return false;
-
-    return switch (a) {
-        .null => true, // b is checked for null above.
-        .bool => a.bool == b.bool,
-        .integer => a.integer == b.integer,
-        .float => a.float == b.float,
-        .number_string => std.mem.eql(u8, a.number_string, b.number_string),
-        .string => std.mem.eql(u8, a.string, b.string),
-        .array => blk: {
-            if (a.array.items.len != b.array.items.len) break :blk false;
-            for (a.array.items, b.array.items) |item_1, item_2| {
-                if (!eql(item_1, item_2)) break :blk false;
-            }
-            break :blk true;
-        },
-        .object => blk: {
-            if (a.object.count() != b.object.count()) break :blk false;
-            var it = a.object.iterator();
-            while (it.next()) |entry| {
-                const key = entry.key_ptr.*;
-                const value = entry.value_ptr.*;
-                if (b.object.get(key)) |other_value| {
-                    if (!eql(value, other_value)) break :blk false;
-                } else break :blk false;
-            }
-
-            break :blk true;
-        },
-    };
 }
