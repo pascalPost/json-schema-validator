@@ -7,7 +7,7 @@ struct RegexWrapper {
   std::regex regex;
 };
 
-RegexWrapper *createRegex(const char *pattern, ulong count) {
+RegexWrapper *createRegex(const char *pattern, unsigned long count) {
   try {
     return new RegexWrapper{std::regex{std::string{pattern, count}}};
   } catch (...) {
@@ -20,7 +20,8 @@ void destroyRegex(RegexWrapper *regex) {
   regex = nullptr;
 }
 
-bool matchRegex(const RegexWrapper *const regex, const char *str, ulong count) {
+bool matchRegex(const RegexWrapper *const regex, const char *str,
+                unsigned long int count) {
   if (!regex)
     return false;
   try {
