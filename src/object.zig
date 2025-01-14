@@ -23,13 +23,13 @@ fn checkMinOrMaxProperties(comptime check: enum { min, max }, min_or_max_propert
         .min => {
             if (data.object.count() < required) {
                 const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object has {d} properties, more than maximum of {d}", .{ data.object.count(), required });
-                try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
             }
         },
         .max => {
             if (data.object.count() > required) {
                 const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object has {d} properties, lenn than minimum of {d}", .{ data.object.count(), required });
-                try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
             }
         },
     }
@@ -47,7 +47,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             const key = entry.key_ptr.*;
             const value = entry.value_ptr.*;
 
-            try stack.push("properties");
+            try stack.pushPath("properties");
             if (data.object.get(key)) |d| {
                 try checkNode(value.object, d, stack, errors);
             }
@@ -76,11 +76,11 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                         .null => {},
                         .bool => |b| {
                             if (!b) {
-                                try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = "Invalid object (pattern property matching schema false)" });
+                                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Invalid object (pattern property matching schema false)" });
                             }
                         },
                         .object => |obj| {
-                            try stack.push("patternProperties");
+                            try stack.pushPath("patternProperties");
                             try checkNode(obj, value, stack, errors);
                             stack.pop();
                         },
@@ -118,11 +118,11 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                 .null => {},
                 .bool => |b| {
                     if (!b) {
-                        try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = "Invalid object (additional properties not allowed)" });
+                        try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Invalid object (additional properties not allowed)" });
                     }
                 },
                 .object => |obj| {
-                    try stack.push("additionalProperties");
+                    try stack.pushPath("additionalProperties");
                     try checkNode(obj, value, stack, errors);
                     stack.pop();
                 },

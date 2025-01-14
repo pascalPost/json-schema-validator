@@ -8,24 +8,13 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
     if (node.get("$ref")) |ref| {
         std.debug.assert(ref == .string);
         const ref_path = ref.string;
+        const node_ref = (try stack.value(ref_path)).?;
 
-        std.debug.print("link: {s}\n", .{ref.string});
+        try stack.pushPath("$ref");
+        try checkNode(node_ref.object, data, stack, errors);
+        stack.pop();
 
-        // check the given ref
-        if (ref_path[0] == '#') {
-            // handle absolute path
-            const node_ref = stack.root.object;
-
-            try stack.push("$ref");
-
-            try checkNode(node_ref, data, stack, errors);
-
-            stack.pop();
-
-            return;
-        } else {
-            std.debug.panic("unhandled reference type: {s}\n", .{ref_path});
-        }
+        return;
     }
 
     if (node.get("type")) |t| {
@@ -33,7 +22,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             .string => {
                 if (!checkType(data, t.string)) {
                     const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Expected type {s} but found {s}", .{ t.string, @tagName(data) });
-                    try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
+                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
                 }
             },
             .array => blk: {
@@ -56,7 +45,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                     }
                 }
                 const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Expected one of types [{s}] but found {s}", .{ buffer[0..len], @tagName(data) });
-                try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
             },
             else => {
                 std.debug.panic("schema error: value of key \"type\" must be string or array (found: {s})", .{@tagName(t)});
@@ -68,18 +57,18 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
         switch (n) {
             .array => |a| {
                 if (a.items.len == 0) {
-                    const path = try stack.path(errors.arena.allocator());
+                    const path = try stack.constructPath(errors.arena.allocator());
                     std.log.warn("schema warning: the enum array should have at lease one elmenet, but found 0 ({s}).", .{path});
                 }
                 // NOTE: we do not check that elements are unique
-                if (!checkEnum(data, a.items)) try addEnumError(errors, try stack.path(errors.arena.allocator()), data, n);
+                if (!checkEnum(data, a.items)) try addEnumError(errors, try stack.constructPath(errors.arena.allocator()), data, n);
             },
             else => std.debug.panic("schema error: value of key \"enum\" must be array (found: {s})", .{@tagName(n)}),
         }
     }
 
     if (node.get("const")) |n| {
-        if (!eql(data, n)) try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = "Value does not match const definition" });
+        if (!eql(data, n)) try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Value does not match const definition" });
     }
 }
 

@@ -48,9 +48,11 @@ test "run test suite" {
         "maxLength.json",
         "minLength.json",
         "pattern.json",
+        // "items.json",
         // "enum.json",
         // "properties.json",
         // "ref.json",
+        // "WIP.json",
     };
     const allocator = std.testing.allocator;
     var file_path_buf: [100]u8 = undefined;

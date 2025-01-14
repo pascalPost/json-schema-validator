@@ -1,58 +1,76 @@
 const std = @import("std");
 const eql = @import("value.zig").eql;
 
+const Tag = enum { path_len, index };
+
+const Storage = union(Tag) {
+    path_len: usize,
+    index: usize,
+};
+
+/// Stack data structure. It saves either index or pathes (strings). For pathes, a length is saved that referes to the string in the buffer.
 pub const Stack = struct {
     allocator: std.mem.Allocator,
-    data: std.ArrayListUnmanaged(u8), // chars
-    len: std.ArrayListUnmanaged(usize), // string lengths
+    path_buffer: std.ArrayListUnmanaged(u8),
+    data: std.ArrayListUnmanaged(Storage),
     root: std.json.Value,
 
     pub fn init(allocator: std.mem.Allocator, root_node: std.json.Value, capacity: usize) !Stack {
         // TODO allow to give an estimated depth and init with capacity
         return .{
             .allocator = allocator,
-            .data = try std.ArrayListUnmanaged(u8).initCapacity(allocator, capacity),
-            .len = try std.ArrayListUnmanaged(usize).initCapacity(allocator, capacity),
+            .path_buffer = try std.ArrayListUnmanaged(u8).initCapacity(allocator, capacity),
+            .data = try std.ArrayListUnmanaged(Storage).initCapacity(allocator, capacity),
             .root = root_node,
         };
     }
 
     pub fn deinit(self: *Stack) void {
+        self.path_buffer.deinit(self.allocator);
         self.data.deinit(self.allocator);
-        self.len.deinit(self.allocator);
     }
 
-    pub fn push(self: *Stack, items: []const u8) !void {
-        try self.data.appendSlice(self.allocator, items);
-        try self.len.append(self.allocator, items.len);
+    pub fn pushPath(self: *Stack, path: []const u8) !void {
+        try self.path_buffer.appendSlice(self.allocator, path);
+        try self.data.append(self.allocator, .{ .path_len = path.len });
+    }
+
+    pub fn pushIndex(self: *Stack, index: usize) !void {
+        try self.data.append(self.allocator, .{ .index = index });
     }
 
     pub fn pop(self: *Stack) void {
-        const last_len = self.len.pop();
-        self.data.shrinkRetainingCapacity(self.data.items.len - last_len);
+        const item = self.data.pop();
+        switch (item) {
+            .path_len => |len| {
+                self.path_buffer.shrinkRetainingCapacity(self.path_buffer.items.len - len);
+            },
+            .index => {},
+        }
     }
 
-    pub fn path(self: Stack, allocator: std.mem.Allocator) ![]const u8 {
-        // account for # and / and items
-        var length = 1 + self.len.items.len;
-        for (self.len.items) |l| length += l;
+    pub fn constructPath(self: Stack, allocator: std.mem.Allocator) ![]const u8 {
+        // TODO performance can be enhanced!
+        var path = std.ArrayList(u8).init(allocator);
+        try path.append('#');
 
-        var path_str = try allocator.alloc(u8, length);
-
-        path_str[0] = '#';
-
-        var data_head: usize = 0;
-        var path_head: usize = 1;
-        for (self.len.items) |word_length| {
-            const word = self.data.items[data_head .. data_head + word_length];
-            data_head += word_length;
-
-            path_str[path_head] = '/';
-            @memcpy(path_str[path_head + 1 .. path_head + 1 + word_length], word);
-            path_head += word_length + 1;
+        var buffer_head: usize = 0;
+        for (self.data.items) |storage| {
+            try path.append('/');
+            switch (storage) {
+                .index => |index| {
+                    var writer = path.writer();
+                    try writer.print("{}", .{index});
+                },
+                .path_len => |len| {
+                    const start = buffer_head;
+                    buffer_head += len;
+                    try path.appendSlice(self.path_buffer.items[start..buffer_head]);
+                },
+            }
         }
 
-        return path_str;
+        return try path.toOwnedSlice();
     }
 
     pub fn value(self: Stack, abs_path: []const u8) !?std.json.Value {
@@ -143,7 +161,7 @@ test "stack" {
 
     // the initial path of the stack is the root
     {
-        const path = try stack.path(allocator);
+        const path = try stack.constructPath(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#", path);
 
@@ -151,9 +169,9 @@ test "stack" {
         try std.testing.expect(eql(node, stack.root));
     }
 
-    try stack.push("properties");
+    try stack.pushPath("properties");
     {
-        const path = try stack.path(allocator);
+        const path = try stack.constructPath(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties", path);
 
@@ -161,9 +179,9 @@ test "stack" {
         try std.testing.expect(eql(node, stack.root.object.get("properties").?));
     }
 
-    try stack.push("address");
+    try stack.pushPath("address");
     {
-        const path = try stack.path(allocator);
+        const path = try stack.constructPath(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties/address", path);
 
@@ -171,9 +189,9 @@ test "stack" {
         try std.testing.expect(eql(node, stack.root.object.get("properties").?.object.get("address").?));
     }
 
-    try stack.push("required");
+    try stack.pushPath("required");
     {
-        const path = try stack.path(allocator);
+        const path = try stack.constructPath(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties/address/required", path);
 
@@ -181,9 +199,9 @@ test "stack" {
         try std.testing.expect(eql(node, stack.root.object.get("properties").?.object.get("address").?.object.get("required").?));
     }
 
-    try stack.push("1");
+    try stack.pushIndex(1);
     {
-        const path = try stack.path(allocator);
+        const path = try stack.constructPath(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties/address/required/1", path);
 
@@ -193,14 +211,14 @@ test "stack" {
 
     stack.pop();
     {
-        const path = try stack.path(allocator);
+        const path = try stack.constructPath(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties/address/required", path);
     }
 
     stack.pop();
     {
-        const path = try stack.path(allocator);
+        const path = try stack.constructPath(allocator);
         defer allocator.free(path);
         try std.testing.expectEqualStrings("#/properties/address", path);
     }

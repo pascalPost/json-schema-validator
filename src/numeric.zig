@@ -48,7 +48,7 @@ fn checkExtrema(node: std.json.ObjectMap, data_value: f64, stack: *Stack, errors
 
             if (c.check(data_value, extreme_value)) {
                 const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Exceeds {s} {} (found {})", .{ c.name, extreme_value, data_value });
-                try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
             }
         }
     }
@@ -74,7 +74,7 @@ fn checkMultipleOf(node: std.json.ObjectMap, data_value: f64, stack: *Stack, err
 
         if (!isMultipleOf(data_value, multiple_value)) {
             const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Not a multiple of {} (found {})", .{ multiple_value, data_value });
-            try errors.append(.{ .path = try stack.path(errors.arena.allocator()), .msg = msg });
+            try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
         }
     }
 }

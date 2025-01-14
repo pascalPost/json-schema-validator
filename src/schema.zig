@@ -5,10 +5,11 @@ const generic = @import("generic.zig");
 const numeric = @import("numeric.zig");
 const object = @import("object.zig");
 const string = @import("string.zig");
+const array = @import("array.zig");
 
 const testing = std.testing;
 
-const ErrorSet = error{} || std.mem.Allocator.Error;
+const ErrorSet = error{} || std.mem.Allocator.Error || std.fmt.ParseIntError;
 
 // https://json-schema.org/implementers/interfaces#two-argument-validation
 pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
@@ -20,6 +21,7 @@ pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, 
         .number_string => unreachable,
         .string => |str| try string.checks(node, str, stack, errors),
         .object => try object.checks(node, data, stack, errors),
+        .array => try array.checks(node, data, stack, errors),
         else => {},
     }
 }
