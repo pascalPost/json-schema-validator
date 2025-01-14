@@ -1,7 +1,7 @@
 const std = @import("std");
 const Stack = @import("stack.zig").Stack;
 const Errors = @import("errors.zig").Errors;
-const checkNode = @import("schema.zig").checkNode;
+const checkNode = @import("schema.zig").checkSchema;
 const eql = @import("value.zig").eql;
 
 pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
@@ -11,7 +11,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
         const node_ref = (try stack.value(ref_path)).?;
 
         try stack.pushPath("$ref");
-        try checkNode(node_ref.object, data, stack, errors);
+        try checkNode(node_ref, data, stack, errors);
         stack.pop();
 
         return;

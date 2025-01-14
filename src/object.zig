@@ -2,7 +2,8 @@ const std = @import("std");
 const Stack = @import("stack.zig").Stack;
 const Errors = @import("errors.zig").Errors;
 const Regex = @import("regex.zig").Regex;
-const checkNode = @import("schema.zig").checkNode;
+const checkSchema = @import("schema.zig").checkSchema;
+const checkSchemaObject = @import("schema.zig").checkSchemaObject;
 
 fn checkMinOrMaxProperties(comptime check: enum { min, max }, min_or_max_properties: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
     const required: i64 = switch (min_or_max_properties) {
@@ -49,7 +50,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
 
             try stack.pushPath("properties");
             if (data.object.get(key)) |d| {
-                try checkNode(value.object, d, stack, errors);
+                try checkSchema(value, d, stack, errors);
             }
             stack.pop();
         }
@@ -81,7 +82,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                         },
                         .object => |obj| {
                             try stack.pushPath("patternProperties");
-                            try checkNode(obj, value, stack, errors);
+                            try checkSchemaObject(obj, value, stack, errors);
                             stack.pop();
                         },
                         else => unreachable,
@@ -123,7 +124,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                 },
                 .object => |obj| {
                     try stack.pushPath("additionalProperties");
-                    try checkNode(obj, value, stack, errors);
+                    try checkSchemaObject(obj, value, stack, errors);
                     stack.pop();
                 },
                 else => unreachable,

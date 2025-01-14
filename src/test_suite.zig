@@ -48,7 +48,7 @@ test "run test suite" {
         "maxLength.json",
         "minLength.json",
         "pattern.json",
-        // "items.json",
+        "items.json",
         // "enum.json",
         // "properties.json",
         // "ref.json",
@@ -87,7 +87,7 @@ test "run test suite" {
                 var errors = jsonSchema.Errors.init(allocator);
                 defer errors.deinit();
 
-                try jsonSchema.checkNode(schema.object, data, &stack, &errors);
+                try jsonSchema.checkSchema(schema, data, &stack, &errors);
 
                 const actual = errors.empty();
 

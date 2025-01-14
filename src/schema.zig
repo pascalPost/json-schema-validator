@@ -11,18 +11,33 @@ const testing = std.testing;
 
 const ErrorSet = error{} || std.mem.Allocator.Error || std.fmt.ParseIntError;
 
-// https://json-schema.org/implementers/interfaces#two-argument-validation
-pub fn checkNode(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
-    try generic.checks(node, data, stack, errors);
+pub fn checkSchemaObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
+    try generic.checks(schema, data, stack, errors);
 
     switch (data) {
-        .integer => |i| try numeric.checks(i64, node, i, stack, errors),
-        .float => |f| try numeric.checks(f64, node, f, stack, errors),
+        .integer => |i| try numeric.checks(i64, schema, i, stack, errors),
+        .float => |f| try numeric.checks(f64, schema, f, stack, errors),
         .number_string => unreachable,
-        .string => |str| try string.checks(node, str, stack, errors),
-        .object => try object.checks(node, data, stack, errors),
-        .array => try array.checks(node, data, stack, errors),
+        .string => |str| try string.checks(schema, str, stack, errors),
+        .object => try object.checks(schema, data, stack, errors),
+        .array => try array.checks(schema, data, stack, errors),
         else => {},
+    }
+}
+
+pub fn checkSchema(schema: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
+    switch (schema) {
+        .bool => |b| {
+            if (b == false and data != .null) {
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "false boolean schema expects empty data." });
+            }
+        },
+        .object => |schema_object| {
+            try checkSchemaObject(schema_object, data, stack, errors);
+        },
+        else => {
+            std.debug.panic("Encountered invalid schema: A JSON Schema MUST be an object or a boolean.", .{});
+        },
     }
 }
 
@@ -33,7 +48,6 @@ pub fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8)
     const data_parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
     defer data_parsed.deinit();
 
-    std.debug.assert(schema_parsed.value == .object);
     std.debug.assert(data_parsed.value == .object);
 
     const stack_capacity = 100;
@@ -43,7 +57,7 @@ pub fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8)
 
     var errors = Errors.init(allocator);
 
-    try checkNode(schema_parsed.value.object, data_parsed.value, &stack, &errors);
+    try checkSchema(schema_parsed.value, data_parsed.value, &stack, &errors);
 
     return errors;
 }
