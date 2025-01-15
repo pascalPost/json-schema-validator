@@ -37,4 +37,21 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             else => unreachable,
         }
     }
+
+    if (node.get("additionalItems")) |additionalItems| {
+        if (node.get("items")) |items| {
+            switch (items) {
+                .array => |array| {
+                    if (data.array.items.len > array.items.len) {
+                        for (array.items.len..data.array.items.len) |index| {
+                            try stack.pushIndex(index);
+                            try checkNode(additionalItems, data.array.items[index], stack, errors);
+                            stack.pop();
+                        }
+                    }
+                },
+                else => {},
+            }
+        }
+    }
 }
