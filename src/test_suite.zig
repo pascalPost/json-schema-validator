@@ -49,6 +49,7 @@ test "run test suite" {
         "minLength.json",
         "pattern.json",
         "additionalItems.json",
+        "required.json",
         // "items.json",
         // "enum.json",
         // "properties.json",

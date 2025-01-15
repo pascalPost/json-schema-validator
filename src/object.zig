@@ -37,6 +37,8 @@ fn checkMinOrMaxProperties(comptime check: enum { min, max }, min_or_max_propert
 }
 
 pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+    std.debug.assert(data == .object);
+
     if (node.get("maxProperties")) |maxProperties| try checkMinOrMaxProperties(.max, maxProperties, data, stack, errors);
     if (node.get("minProperties")) |minProperties| try checkMinOrMaxProperties(.min, minProperties, data, stack, errors);
 
@@ -128,6 +130,20 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                     stack.pop();
                 },
                 else => unreachable,
+            }
+        }
+    }
+
+    if (node.get("required")) |required| {
+        std.debug.assert(required == .array);
+
+        for (required.array.items) |element| {
+            std.debug.assert(element == .string);
+            // should also be unique, but we do not check this.
+
+            if (!data.object.contains(element.string)) {
+                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object is missing the required property {s}", .{element.string});
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
             }
         }
     }
