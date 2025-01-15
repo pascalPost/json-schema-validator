@@ -1,10 +1,21 @@
 # json-schema-validator
 
-Exploration on how to write a json-schema validator in Zig.
+A JSON Schema validator implementation written in Zig, following the [Two-Argument Validation](https://json-schema.org/implementers/interfaces#two-argument-validation) interface specification.
 
-The interface is for now a [Two-Argument Validation](https://json-schema.org/implementers/interfaces#two-argument-validation).
+## Overview
 
-Regex uses cpp regex implementation, i.e., we have to link against std cpp for now.
+This project aims to provide a robust JSON Schema validation solution implemented in Zig for the Zig ecosystem. It currently supports various JSON Schema draft-07 validation features and is actively being developed to support more.
+
+## Dependencies
+
+- Zig compiler
+- C++ Standard Library (for regex support)
+
+## Implementation Details
+
+The validator currently uses C++ regex implementation for pattern matching, requiring linkage against the C++ standard library.
+
+## Features Implementation Status
 
 - [ ] draft-07 tests
   - [x] additionalItems.json
@@ -15,7 +26,7 @@ Regex uses cpp regex implementation, i.e., we have to link against std cpp for n
   - [x] const.json
   - [ ] contains.json
   - [ ] default.json
-  - [ ] definitions.json
+  - [ ] definitions.jsoe
   - [ ] dependencies.json
   - [x] enum.json
   - [x] exclusiveMaximum.json
@@ -44,3 +55,7 @@ Regex uses cpp regex implementation, i.e., we have to link against std cpp for n
   - [x] required.json
   - [x] type.json
   - [ ] uniqueItems.json
+
+## Contributing
+
+Contributions are welcome! Feel free to submit pull requests, especially for implementing pending features.
