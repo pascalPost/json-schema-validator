@@ -6,41 +6,41 @@ The interface is for now a [Two-Argument Validation](https://json-schema.org/imp
 
 Regex uses cpp regex implementation, i.e., we have to link against std cpp for now.
 
-- [] draft-07 tests
-  - [] additionalItems.json
-  - [] additionalProperties.json
-  - [] allOf.json
-  - [] anyOf.json
-  - [] boolean_schema.json
-  - [] const.json
-  - [] contains.json
-  - [] default.json
-  - [] definitions.json
-  - [] dependencies.json
-  - [] enum.json
-  - [] exclusiveMaximum.json
-  - [] exclusiveMinimum.json
-  - [] format.json
-  - [] if-then-else.json
-  - [] infinite-loop-detection.json
-  - [] items.json
-  - [] maxItems.json
-  - [] maxLength.json
-  - [] maxProperties.json
-  - [] maximum.json
-  - [] minItems.json
-  - [] minLength.json
-  - [] minProperties.json
-  - [] minimum.json
-  - [] multipleOf.json
-  - [] not.json
-  - [] oneOf.json
-  - [] pattern.json
-  - [] patternProperties.json
-  - [] properties.json
-  - [] propertyNames.json
-  - [] ref.json
-  - [] refRemote.json
-  - [] required.json
-  - [] type.json
-  - [] uniqueItems.json
+- [ ] draft-07 tests
+  - [x] additionalItems.json
+  - [x] additionalProperties.json
+  - [ ] allOf.json
+  - [ ] anyOf.json
+  - [ ] boolean_schema.json
+  - [x] const.json
+  - [ ] contains.json
+  - [ ] default.json
+  - [ ] definitions.json
+  - [ ] dependencies.json
+  - [x] enum.json
+  - [x] exclusiveMaximum.json
+  - [x] exclusiveMinimum.json
+  - [ ] format.json
+  - [ ] if-then-else.json
+  - [ ] infinite-loop-detection.json
+  - [x] items.json
+  - [x] maxItems.json
+  - [x] maxLength.json
+  - [x] maxProperties.json
+  - [x] maximum.json
+  - [x] minItems.json
+  - [x] minLength.json
+  - [x] minProperties.json
+  - [x] minimum.json
+  - [x] multipleOf.json
+  - [ ] not.json
+  - [ ] oneOf.json
+  - [x] pattern.json
+  - [x] patternProperties.json
+  - [x] properties.json
+  - [ ] propertyNames.json
+  - [ ] ref.json
+  - [ ] refRemote.json
+  - [x] required.json
+  - [x] type.json
+  - [ ] uniqueItems.json
