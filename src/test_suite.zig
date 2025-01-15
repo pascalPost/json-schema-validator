@@ -54,7 +54,7 @@ test "run test suite" {
         "maxItems.json",
         "minItems.json",
         "properties.json",
-        // "enum.json",
+        "enum.json",
         // "ref.json",
         // "WIP.json",
     };
