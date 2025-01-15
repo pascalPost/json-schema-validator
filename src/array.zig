@@ -73,4 +73,19 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
         }
     }
+
+    if (node.get("minItems")) |minItems| {
+        const count = switch (minItems) {
+            .integer => |i| i,
+            .float => |f| numeric.floatToInteger(f).?,
+            else => unreachable,
+        };
+
+        std.debug.assert(count > 0);
+
+        if (data.array.items.len < count) {
+            const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array (items: {}) less than minItems {}", .{ data.array.items.len, count });
+            try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+        }
+    }
 }
