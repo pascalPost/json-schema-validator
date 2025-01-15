@@ -28,8 +28,8 @@ pub fn checkSchemaObject(schema: std.json.ObjectMap, data: std.json.Value, stack
 pub fn checkSchema(schema: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
     switch (schema) {
         .bool => |b| {
-            if (b == false and data != .null) {
-                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "false boolean schema expects empty data." });
+            if (b == false) {
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "false boolean schema expects no data." });
             }
         },
         .object => |schema_object| {
