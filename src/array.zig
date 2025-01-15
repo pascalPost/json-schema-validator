@@ -17,6 +17,10 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             },
             .array => |array| {
                 const len = @min(array.items.len, data.array.items.len);
+
+                try stack.pushPath("items");
+                defer stack.pop();
+
                 for (0..len) |index| {
                     const schema = array.items[index];
                     const item = data.array.items[index];

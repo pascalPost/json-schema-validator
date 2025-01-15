@@ -50,7 +50,7 @@ test "run test suite" {
         "pattern.json",
         "additionalItems.json",
         "required.json",
-        // "items.json",
+        "items.json",
         // "enum.json",
         // "properties.json",
         // "ref.json",
