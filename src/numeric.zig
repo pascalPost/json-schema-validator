@@ -78,3 +78,10 @@ fn checkMultipleOf(node: std.json.ObjectMap, data_value: f64, stack: *Stack, err
         }
     }
 }
+
+pub fn floatToInteger(float: f64) ?i64 {
+    const int: i64 = std.math.lossyCast(i64, float);
+    const f: f64 = @floatFromInt(int);
+    if (float != f) return null;
+    return int;
+}

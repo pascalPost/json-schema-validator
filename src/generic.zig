@@ -3,6 +3,7 @@ const Stack = @import("stack.zig").Stack;
 const Errors = @import("errors.zig").Errors;
 const checkNode = @import("schema.zig").checkSchema;
 const eql = @import("value.zig").eql;
+const numeric = @import("numeric.zig");
 
 pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
     if (node.get("$ref")) |ref| {
@@ -85,11 +86,10 @@ fn checkType(data: std.json.Value, type_name: []const u8) bool {
         // match any number with a zero fractional part
         switch (data) {
             .integer => return true,
-            .float => {
+            .float => |float| {
                 // float with zero fractional part is an integer
-                const int: i64 = std.math.lossyCast(i64, data.float);
-                const float: f64 = @floatFromInt(int);
-                if (data.float == float) return true else return false;
+                if (numeric.floatToInteger(float) == null) return false;
+                return true;
             },
             else => return false,
         }

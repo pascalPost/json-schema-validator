@@ -51,6 +51,7 @@ test "run test suite" {
         "additionalItems.json",
         "required.json",
         "items.json",
+        "maxItems.json",
         // "enum.json",
         // "properties.json",
         // "ref.json",
