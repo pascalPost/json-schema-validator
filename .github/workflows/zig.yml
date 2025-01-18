@@ -15,6 +15,7 @@ jobs:
       - name: Install Zig
         uses: mlugg/setup-zig@v1
         with:
-          zig-version: "latest"
+          version: "latest"
 
-      - run: zig build test
+      - name: Run tests
+        run: zig build test
