@@ -28,7 +28,7 @@ The validator currently uses C++ regex implementation for pattern matching, requ
   - [x] const.json
   - [ ] contains.json
   - [ ] default.json
-  - [ ] definitions.jsoe
+  - [ ] definitions.json
   - [ ] dependencies.json
   - [x] enum.json
   - [x] exclusiveMaximum.json

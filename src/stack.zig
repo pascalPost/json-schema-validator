@@ -1,4 +1,5 @@
 const std = @import("std");
+const json_pointer = @import("json_pointer.zig");
 const eql = @import("value.zig").eql;
 
 const Tag = enum { path_len, index };
@@ -14,20 +15,24 @@ pub const Stack = struct {
     path_buffer: std.ArrayListUnmanaged(u8),
     data: std.ArrayListUnmanaged(Storage),
     root: std.json.Value,
+    decoder: json_pointer.PathDecoderUnmanaged,
 
     pub fn init(allocator: std.mem.Allocator, root_node: std.json.Value, capacity: usize) !Stack {
         // TODO allow to give an estimated depth and init with capacity
+        const path_capacity = 1000;
         return .{
             .allocator = allocator,
             .path_buffer = try std.ArrayListUnmanaged(u8).initCapacity(allocator, capacity),
             .data = try std.ArrayListUnmanaged(Storage).initCapacity(allocator, capacity),
             .root = root_node,
+            .decoder = try json_pointer.PathDecoderUnmanaged.initCapacity(allocator, path_capacity),
         };
     }
 
     pub fn deinit(self: *Stack) void {
         self.path_buffer.deinit(self.allocator);
         self.data.deinit(self.allocator);
+        self.decoder.deinit(self.allocator);
     }
 
     pub fn pushPath(self: *Stack, path: []const u8) !void {
@@ -73,24 +78,27 @@ pub const Stack = struct {
         return try path.toOwnedSlice();
     }
 
-    pub fn value(self: Stack, abs_path: []const u8) !?std.json.Value {
+    pub fn value(self: *Stack, abs_path: []const u8) !?std.json.Value {
+        std.debug.assert(abs_path.len > 0);
         std.debug.assert(abs_path[0] == '#');
         if (abs_path.len == 1) return self.root;
 
         var it = try std.fs.path.componentIterator(abs_path[1..]);
         var parent = self.root;
         while (it.next()) |component| {
+            const component_path = try self.decoder.decode(self.allocator, component.name);
+
             switch (parent) {
                 .object => |object| {
-                    if (object.get(component.name)) |v| {
+                    if (object.get(component_path)) |v| {
                         parent = v;
                     } else {
-                        std.debug.print("could not find key {s} in object at path {s}\n", .{ component.name, component.path });
+                        std.debug.print("could not find key {s} in object at path {s}\n", .{ component_path, component.path });
                         return null;
                     }
                 },
                 .array => |array| {
-                    const idx = try std.fmt.parseInt(usize, component.name, 10);
+                    const idx = try std.fmt.parseInt(usize, component_path, 10);
                     if (idx >= array.items.len) {
                         std.debug.print("requested array index {} does not exist in array at path {s}\n", .{ idx, component.path });
                         return null;

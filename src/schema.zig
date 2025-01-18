@@ -6,10 +6,11 @@ const numeric = @import("numeric.zig");
 const object = @import("object.zig");
 const string = @import("string.zig");
 const array = @import("array.zig");
+const json_pointer = @import("json_pointer.zig");
 
 const testing = std.testing;
 
-const ErrorSet = error{} || std.mem.Allocator.Error || std.fmt.ParseIntError;
+const ErrorSet = std.mem.Allocator.Error || std.fmt.ParseIntError || json_pointer.Error;
 
 pub fn checkSchemaObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
     try generic.checks(schema, data, stack, errors);

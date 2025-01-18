@@ -9,7 +9,10 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
     if (node.get("$ref")) |ref| {
         std.debug.assert(ref == .string);
         const ref_path = ref.string;
-        const node_ref = (try stack.value(ref_path)).?;
+        const node_ref = (try stack.value(ref_path)) orelse {
+            std.debug.print("ref_path could not be found: {s}\n", .{ref_path});
+            unreachable;
+        };
 
         try stack.pushPath("$ref");
         try checkNode(node_ref, data, stack, errors);
