@@ -2,7 +2,7 @@ const std = @import("std");
 const Stack = @import("stack.zig").Stack;
 const Errors = @import("errors.zig").Errors;
 const Regex = @import("regex.zig").Regex;
-const checkNode = @import("schema.zig").checkSchema;
+const checkNode = @import("schema.zig").check;
 
 pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors: *Errors) !void {
     if (node.get("maxLength")) |value| {

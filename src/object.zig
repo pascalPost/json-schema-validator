@@ -2,8 +2,7 @@ const std = @import("std");
 const Stack = @import("stack.zig").Stack;
 const Errors = @import("errors.zig").Errors;
 const Regex = @import("regex.zig").Regex;
-const checkSchema = @import("schema.zig").checkSchema;
-const checkSchemaObject = @import("schema.zig").checkSchemaObject;
+const schema = @import("schema.zig");
 
 fn checkMinOrMaxProperties(comptime check: enum { min, max }, min_or_max_properties: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
     const required: i64 = switch (min_or_max_properties) {
@@ -52,7 +51,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
 
             try stack.pushPath("properties");
             if (data.object.get(key)) |d| {
-                try checkSchema(value, d, stack, errors);
+                try schema.checks(value, d, stack, errors);
             }
             stack.pop();
         }
@@ -64,7 +63,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
         var pattern_it = patternProperties.object.iterator();
         while (pattern_it.next()) |entry| {
             const pattern = entry.key_ptr.*;
-            const schema = entry.value_ptr.*;
+            const schema_val = entry.value_ptr.*;
 
             const regex = Regex.init(pattern);
             defer regex.deinit();
@@ -75,7 +74,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                 const value = data_entry.value_ptr.*;
 
                 if (regex.match(key)) {
-                    switch (schema) {
+                    switch (schema_val) {
                         .null => {},
                         .bool => |b| {
                             if (!b) {
@@ -84,7 +83,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                         },
                         .object => |obj| {
                             try stack.pushPath("patternProperties");
-                            try checkSchemaObject(obj, value, stack, errors);
+                            try schema.checksFromObject(obj, value, stack, errors);
                             stack.pop();
                         },
                         else => unreachable,
@@ -126,7 +125,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                 },
                 .object => |obj| {
                     try stack.pushPath("additionalProperties");
-                    try checkSchemaObject(obj, value, stack, errors);
+                    try schema.checksFromObject(obj, value, stack, errors);
                     stack.pop();
                 },
                 else => unreachable,

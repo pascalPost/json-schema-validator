@@ -56,6 +56,7 @@ test "run test suite" {
         "properties.json",
         "enum.json",
         "uniqueItems.json",
+        // "allOf.json",
         // "ref.json",
         // "WIP.json",
     };
@@ -92,7 +93,7 @@ test "run test suite" {
                 var errors = jsonSchema.Errors.init(allocator);
                 defer errors.deinit();
 
-                try jsonSchema.checkSchema(schema, data, &stack, &errors);
+                try jsonSchema.checks(schema, data, &stack, &errors);
 
                 const actual = errors.empty();
 

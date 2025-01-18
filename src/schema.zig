@@ -7,12 +7,13 @@ const object = @import("object.zig");
 const string = @import("string.zig");
 const array = @import("array.zig");
 const json_pointer = @import("json_pointer.zig");
+const boolean_logic = @import("boolean_logic.zig");
 
 const testing = std.testing;
 
 const ErrorSet = std.mem.Allocator.Error || std.fmt.ParseIntError || json_pointer.Error;
 
-pub fn checkSchemaObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
+pub fn checksFromObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
     try generic.checks(schema, data, stack, errors);
 
     switch (data) {
@@ -24,9 +25,11 @@ pub fn checkSchemaObject(schema: std.json.ObjectMap, data: std.json.Value, stack
         .array => try array.checks(schema, data, stack, errors),
         else => {},
     }
+
+    try boolean_logic.checks(schema, data, stack, errors);
 }
 
-pub fn checkSchema(schema: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
+pub fn checks(schema: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
     switch (schema) {
         .bool => |b| {
             if (b == false) {
@@ -34,7 +37,7 @@ pub fn checkSchema(schema: std.json.Value, data: std.json.Value, stack: *Stack, 
             }
         },
         .object => |schema_object| {
-            try checkSchemaObject(schema_object, data, stack, errors);
+            try checksFromObject(schema_object, data, stack, errors);
         },
         else => {
             std.debug.panic("Encountered invalid schema: A JSON Schema MUST be an object or a boolean.", .{});
@@ -42,7 +45,7 @@ pub fn checkSchema(schema: std.json.Value, data: std.json.Value, stack: *Stack, 
     }
 }
 
-pub fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8) !Errors {
+pub fn checkFromSlice(allocator: std.mem.Allocator, schema: []const u8, data: []const u8) !Errors {
     const schema_parsed = try std.json.parseFromSlice(std.json.Value, allocator, schema, .{});
     defer schema_parsed.deinit();
 
@@ -58,7 +61,7 @@ pub fn check(allocator: std.mem.Allocator, schema: []const u8, data: []const u8)
 
     var errors = Errors.init(allocator);
 
-    try checkSchema(schema_parsed.value, data_parsed.value, &stack, &errors);
+    try checks(schema_parsed.value, data_parsed.value, &stack, &errors);
 
     return errors;
 }
@@ -96,7 +99,7 @@ test "basic example" {
         \\}
     ;
 
-    const errors = try check(std.testing.allocator, schema, data);
+    const errors = try checkFromSlice(std.testing.allocator, schema, data);
     defer errors.deinit();
 
     try std.testing.expect(errors.empty());
@@ -161,7 +164,7 @@ test "complex object with nested properties" {
         \\}
     ;
 
-    const errors = try check(std.testing.allocator, schema, data);
+    const errors = try checkFromSlice(std.testing.allocator, schema, data);
     defer errors.deinit();
 
     try std.testing.expect(errors.empty());

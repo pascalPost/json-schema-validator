@@ -1,7 +1,7 @@
 const std = @import("std");
 const Stack = @import("stack.zig").Stack;
 const Errors = @import("errors.zig").Errors;
-const checkNode = @import("schema.zig").checkSchema;
+const schema = @import("schema.zig");
 const numeric = @import("numeric.zig");
 const eql = @import("value.zig").eql;
 
@@ -13,7 +13,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             .object => {
                 for (data.array.items, 0..) |item, index| {
                     try stack.pushIndex(index);
-                    try checkNode(items, item, stack, errors);
+                    try schema.checks(items, item, stack, errors);
                     stack.pop();
                 }
             },
@@ -24,11 +24,11 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                 defer stack.pop();
 
                 for (0..len) |index| {
-                    const schema = array.items[index];
+                    const schema_obj = array.items[index];
                     const item = data.array.items[index];
 
                     try stack.pushIndex(index);
-                    try checkNode(schema, item, stack, errors);
+                    try schema.checks(schema_obj, item, stack, errors);
                     stack.pop();
                 }
             },
@@ -50,7 +50,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                     if (data.array.items.len > array.items.len) {
                         for (array.items.len..data.array.items.len) |index| {
                             try stack.pushIndex(index);
-                            try checkNode(additionalItems, data.array.items[index], stack, errors);
+                            try schema.checks(additionalItems, data.array.items[index], stack, errors);
                             stack.pop();
                         }
                     }
