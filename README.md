@@ -1,5 +1,7 @@
 # json-schema-validator
 
+![Testing Status](https://github.com/pascalPost/json-schema-validator/actions/workflows/zig.yml/badge.svg)
+
 A JSON Schema validator implementation written in Zig, following the [Two-Argument Validation](https://json-schema.org/implementers/interfaces#two-argument-validation) interface specification.
 
 ## Overview
