@@ -5,7 +5,7 @@ const schema = @import("schema.zig");
 const numeric = @import("numeric.zig");
 const eql = @import("value.zig").eql;
 
-pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) !bool {
     std.debug.assert(data == .array); // otherwise we could just return
 
     if (node.get("items")) |items| {
@@ -13,8 +13,8 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             .object => {
                 for (data.array.items, 0..) |item, index| {
                     try stack.pushIndex(index);
-                    try schema.checks(items, item, stack, errors);
-                    stack.pop();
+                    defer stack.pop();
+                    if (!try schema.checks(items, item, stack, collect_errors) and collect_errors == null) return false;
                 }
             },
             .array => |array| {
@@ -28,15 +28,17 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                     const item = data.array.items[index];
 
                     try stack.pushIndex(index);
-                    try schema.checks(schema_obj, item, stack, errors);
-                    stack.pop();
+                    defer stack.pop();
+                    if (!try schema.checks(schema_obj, item, stack, collect_errors) and collect_errors == null) return false;
                 }
             },
             .bool => |b| {
-                if (b == true) return;
+                if (b == true) return true;
 
                 if (data.array.items.len != 0) {
-                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Expected empty array" });
+                    if (collect_errors) |errors| {
+                        try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Expected empty array" });
+                    } else return false;
                 }
             },
             else => unreachable,
@@ -50,8 +52,8 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                     if (data.array.items.len > array.items.len) {
                         for (array.items.len..data.array.items.len) |index| {
                             try stack.pushIndex(index);
-                            try schema.checks(additionalItems, data.array.items[index], stack, errors);
-                            stack.pop();
+                            defer stack.pop();
+                            if (!try schema.checks(additionalItems, data.array.items[index], stack, collect_errors) and collect_errors == null) return false;
                         }
                     }
                 },
@@ -70,8 +72,10 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
         std.debug.assert(count > 0);
 
         if (data.array.items.len > count) {
-            const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array (items: {}) exceeds maxItems {}", .{ data.array.items.len, count });
-            try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+            if (collect_errors) |errors| {
+                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array (items: {}) exceeds maxItems {}", .{ data.array.items.len, count });
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+            } else return false;
         }
     }
 
@@ -85,8 +89,10 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
         std.debug.assert(count > 0);
 
         if (data.array.items.len < count) {
-            const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array (items: {}) less than minItems {}", .{ data.array.items.len, count });
-            try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+            if (collect_errors) |errors| {
+                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array (items: {}) less than minItems {}", .{ data.array.items.len, count });
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+            } else return false;
         }
     }
 
@@ -104,10 +110,14 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             const item = items[head];
             for (head + 1..items.len) |index| {
                 if (eql(item, items[index])) {
-                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array contains non-unique items ({} and {}) ", .{ head, index });
-                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                    if (collect_errors) |errors| {
+                        const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array contains non-unique items ({} and {}) ", .{ head, index });
+                        try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                    } else return false;
                 }
             }
         }
     }
+
+    return true;
 }

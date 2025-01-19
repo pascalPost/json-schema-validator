@@ -9,35 +9,41 @@ const array = @import("array.zig");
 const json_pointer = @import("json_pointer.zig");
 const boolean_logic = @import("boolean_logic.zig");
 
-const testing = std.testing;
-
 const ErrorSet = std.mem.Allocator.Error || std.fmt.ParseIntError || json_pointer.Error;
 
-pub fn checksFromObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
-    try generic.checks(schema, data, stack, errors);
+pub fn checksFromObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) ErrorSet!bool {
+    var valid = try generic.checks(schema, data, stack, collect_errors);
+    if (!valid and collect_errors == null) return false;
 
-    switch (data) {
-        .integer => |i| try numeric.checks(i64, schema, i, stack, errors),
-        .float => |f| try numeric.checks(f64, schema, f, stack, errors),
+    valid = switch (data) {
+        .integer => |i| try numeric.checks(i64, schema, i, stack, collect_errors),
+        .float => |f| try numeric.checks(f64, schema, f, stack, collect_errors),
         .number_string => unreachable,
-        .string => |str| try string.checks(schema, str, stack, errors),
-        .object => try object.checks(schema, data, stack, errors),
-        .array => try array.checks(schema, data, stack, errors),
-        else => {},
-    }
+        .string => |str| try string.checks(schema, str, stack, collect_errors),
+        .object => try object.checks(schema, data, stack, collect_errors),
+        .array => try array.checks(schema, data, stack, collect_errors),
+        else => true,
+    } and valid;
+    if (!valid and collect_errors == null) return false;
 
-    try boolean_logic.checks(schema, data, stack, errors);
+    valid = try boolean_logic.checks(schema, data, stack, collect_errors) and valid;
+
+    return valid;
 }
 
-pub fn checks(schema: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) ErrorSet!void {
+pub fn checks(schema: std.json.Value, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) ErrorSet!bool {
     switch (schema) {
         .bool => |b| {
             if (b == false) {
-                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "false boolean schema expects no data." });
+                if (collect_errors) |errors| {
+                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "false boolean schema expects no data." });
+                }
+                return false;
             }
+            return true;
         },
         .object => |schema_object| {
-            try checksFromObject(schema_object, data, stack, errors);
+            return try checksFromObject(schema_object, data, stack, collect_errors);
         },
         else => {
             std.debug.panic("Encountered invalid schema: A JSON Schema MUST be an object or a boolean.", .{});
@@ -61,7 +67,7 @@ pub fn checkFromSlice(allocator: std.mem.Allocator, schema: []const u8, data: []
 
     var errors = Errors.init(allocator);
 
-    try checks(schema_parsed.value, data_parsed.value, &stack, &errors);
+    _ = try checks(schema_parsed.value, data_parsed.value, &stack, &errors);
 
     return errors;
 }

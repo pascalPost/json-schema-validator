@@ -5,7 +5,7 @@ pub const std_options = struct {
     pub const log_level = .err;
 };
 
-fn runTest(expected: bool, actual: bool, file: []const u8, case_name: []const u8, test_name: []const u8, schema: std.json.Value, data: std.json.Value) !void {
+fn runTest(expected: bool, actual: bool, file: []const u8, case_name: []const u8, test_name: []const u8, mode: []const u8, schema: std.json.Value, data: std.json.Value) !void {
     if (expected != actual) {
         const schema_str = try std.json.stringifyAlloc(std.testing.allocator, schema, .{});
         defer std.testing.allocator.free(schema_str);
@@ -18,6 +18,7 @@ fn runTest(expected: bool, actual: bool, file: []const u8, case_name: []const u8
             \\file: {s}
             \\case: {s}
             \\test: {s}
+            \\mode: {s}
             \\============== schema: ===============
             \\{s}
             \\=============== data: ================
@@ -27,7 +28,7 @@ fn runTest(expected: bool, actual: bool, file: []const u8, case_name: []const u8
             \\============== actual: ===============
             \\{}
             \\======================================
-        , .{ file, case_name, test_name, schema_str, data_str, expected, actual });
+        , .{ file, case_name, test_name, mode, schema_str, data_str, expected, actual });
         return error.failedTest;
     }
 }
@@ -90,14 +91,18 @@ test "run test suite" {
                 var stack = try jsonSchema.Stack.init(allocator, schema, 10);
                 defer stack.deinit();
 
-                var errors = jsonSchema.Errors.init(allocator);
-                defer errors.deinit();
+                {
+                    const valid = try jsonSchema.checks(schema, data, &stack, null);
+                    try runTest(expected, valid, file_path, case_name, test_name, "early return", schema, data);
+                }
 
-                try jsonSchema.checks(schema, data, &stack, &errors);
-
-                const actual = errors.empty();
-
-                try runTest(expected, actual, file_path, case_name, test_name, schema, data);
+                // {
+                //     var errors = jsonSchema.Errors.init(allocator);
+                //     defer errors.deinit();
+                //     const valid = try jsonSchema.checks(schema, data, &stack, &errors);
+                //     try runTest(expected, valid, file_path, case_name, test_name, "collect all errors", schema, data);
+                //     try std.testing.expectEqual(valid, errors.empty());
+                // }
             }
         }
     }

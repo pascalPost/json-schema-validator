@@ -4,13 +4,15 @@ const Errors = @import("errors.zig").Errors;
 const Regex = @import("regex.zig").Regex;
 const checkNode = @import("schema.zig").check;
 
-pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors: *Errors) !void {
+pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, collect_errors: ?*Errors) !bool {
     if (node.get("maxLength")) |value| {
         if (lengthCheck(.max, value, data) catch {
             std.debug.panic("schema error: value of key \"maxLength\" must be integer (found: {s})", .{@tagName(value)});
         }) {
-            const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String length {d} is longer than maximum of {}", .{ data.len, value });
-            try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+            if (collect_errors) |errors| {
+                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String length {d} is longer than maximum of {}", .{ data.len, value });
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+            } else return false;
         }
     }
 
@@ -18,8 +20,10 @@ pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors:
         if (lengthCheck(.min, value, data) catch {
             std.debug.panic("schema error: value of key \"minLength\" must be integer (found: {s})", .{@tagName(value)});
         }) {
-            const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String length {d} is smaller than minimum of {}", .{ data.len, value });
-            try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+            if (collect_errors) |errors| {
+                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String length {d} is smaller than minimum of {}", .{ data.len, value });
+                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+            } else return false;
         }
     }
 
@@ -29,8 +33,10 @@ pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors:
                 const re = Regex.init(p);
                 defer re.deinit();
                 if (!re.match(data)) {
-                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String does not match pattern \"{}\"", .{pattern});
-                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                    if (collect_errors) |errors| {
+                        const msg = try std.fmt.allocPrint(errors.arena.allocator(), "String does not match pattern \"{}\"", .{pattern});
+                        try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                    } else return false;
                 }
             },
             else => {
@@ -38,6 +44,8 @@ pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, errors:
             },
         }
     }
+
+    return true;
 }
 
 fn lengthCheck(comptime check: enum { min, max }, value: std.json.Value, data: []const u8) !bool {

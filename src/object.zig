@@ -4,7 +4,7 @@ const Errors = @import("errors.zig").Errors;
 const Regex = @import("regex.zig").Regex;
 const schema = @import("schema.zig");
 
-fn checkMinOrMaxProperties(comptime check: enum { min, max }, min_or_max_properties: std.json.Value, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+fn checkMinOrMaxProperties(comptime check: enum { min, max }, min_or_max_properties: std.json.Value, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) !bool {
     const required: i64 = switch (min_or_max_properties) {
         .integer => |i| i,
         .float => |f| blk: {
@@ -22,24 +22,30 @@ fn checkMinOrMaxProperties(comptime check: enum { min, max }, min_or_max_propert
     switch (check) {
         .min => {
             if (data.object.count() < required) {
-                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object has {d} properties, more than maximum of {d}", .{ data.object.count(), required });
-                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                if (collect_errors) |errors| {
+                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object has {d} properties, more than maximum of {d}", .{ data.object.count(), required });
+                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                } else return false;
             }
         },
         .max => {
             if (data.object.count() > required) {
-                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object has {d} properties, lenn than minimum of {d}", .{ data.object.count(), required });
-                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                if (collect_errors) |errors| {
+                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object has {d} properties, lenn than minimum of {d}", .{ data.object.count(), required });
+                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                } else return false;
             }
         },
     }
+
+    return true;
 }
 
-pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, errors: *Errors) !void {
+pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) !bool {
     std.debug.assert(data == .object);
 
-    if (node.get("maxProperties")) |maxProperties| try checkMinOrMaxProperties(.max, maxProperties, data, stack, errors);
-    if (node.get("minProperties")) |minProperties| try checkMinOrMaxProperties(.min, minProperties, data, stack, errors);
+    if (node.get("maxProperties")) |maxProperties| if (!try checkMinOrMaxProperties(.max, maxProperties, data, stack, collect_errors) and collect_errors == null) return false;
+    if (node.get("minProperties")) |minProperties| if (!try checkMinOrMaxProperties(.min, minProperties, data, stack, collect_errors) and collect_errors == null) return false;
 
     if (node.get("properties")) |properties| {
         std.debug.assert(properties == .object);
@@ -50,10 +56,11 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             const value = entry.value_ptr.*;
 
             try stack.pushPath("properties");
+            defer stack.pop();
+
             if (data.object.get(key)) |d| {
-                try schema.checks(value, d, stack, errors);
+                if (!try schema.checks(value, d, stack, collect_errors) and collect_errors == null) return false;
             }
-            stack.pop();
         }
     }
 
@@ -78,13 +85,16 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                         .null => {},
                         .bool => |b| {
                             if (!b) {
-                                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Invalid object (pattern property matching schema false)" });
+                                if (collect_errors) |errors| {
+                                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Invalid object (pattern property matching schema false)" });
+                                } else return false;
                             }
                         },
                         .object => |obj| {
                             try stack.pushPath("patternProperties");
-                            try schema.checksFromObject(obj, value, stack, errors);
-                            stack.pop();
+                            defer stack.pop();
+
+                            if (!try schema.checksFromObject(obj, value, stack, collect_errors) and collect_errors == null) return false;
                         },
                         else => unreachable,
                     }
@@ -120,13 +130,16 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
                 .null => {},
                 .bool => |b| {
                     if (!b) {
-                        try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Invalid object (additional properties not allowed)" });
+                        if (collect_errors) |errors| {
+                            try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Invalid object (additional properties not allowed)" });
+                        } else return false;
                     }
                 },
                 .object => |obj| {
                     try stack.pushPath("additionalProperties");
-                    try schema.checksFromObject(obj, value, stack, errors);
-                    stack.pop();
+                    defer stack.pop();
+
+                    if (!try schema.checksFromObject(obj, value, stack, collect_errors) and collect_errors == null) return false;
                 },
                 else => unreachable,
             }
@@ -141,9 +154,13 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, err
             // should also be unique, but we do not check this.
 
             if (!data.object.contains(element.string)) {
-                const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object is missing the required property {s}", .{element.string});
-                try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                if (collect_errors) |errors| {
+                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Object is missing the required property {s}", .{element.string});
+                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                } else return false;
             }
         }
     }
+
+    return true;
 }
