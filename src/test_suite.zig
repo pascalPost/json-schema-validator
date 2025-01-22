@@ -96,13 +96,13 @@ test "run test suite" {
                     try runTest(expected, valid, file_path, case_name, test_name, "early return", schema, data);
                 }
 
-                // {
-                //     var errors = jsonSchema.Errors.init(allocator);
-                //     defer errors.deinit();
-                //     const valid = try jsonSchema.checks(schema, data, &stack, &errors);
-                //     try runTest(expected, valid, file_path, case_name, test_name, "collect all errors", schema, data);
-                //     try std.testing.expectEqual(valid, errors.empty());
-                // }
+                {
+                    var errors = jsonSchema.Errors.init(allocator);
+                    defer errors.deinit();
+                    const valid = try jsonSchema.checks(schema, data, &stack, &errors);
+                    try runTest(expected, valid, file_path, case_name, test_name, "collect all errors", schema, data);
+                    try std.testing.expectEqual(valid, errors.empty());
+                }
             }
         }
     }

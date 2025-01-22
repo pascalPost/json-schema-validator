@@ -9,7 +9,7 @@ const array = @import("array.zig");
 const json_pointer = @import("json_pointer.zig");
 const boolean_logic = @import("boolean_logic.zig");
 
-const ErrorSet = std.mem.Allocator.Error || std.fmt.ParseIntError || json_pointer.Error;
+pub const ErrorSet = std.mem.Allocator.Error || std.fmt.ParseIntError || json_pointer.Error;
 
 pub fn checksFromObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) ErrorSet!bool {
     var valid = try generic.checks(schema, data, stack, collect_errors);

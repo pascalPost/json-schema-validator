@@ -45,7 +45,7 @@ pub fn checks(node: std.json.ObjectMap, data: []const u8, stack: *Stack, collect
         }
     }
 
-    return true;
+    return if (collect_errors) |errors| errors.empty() else true;
 }
 
 fn lengthCheck(comptime check: enum { min, max }, value: std.json.Value, data: []const u8) !bool {

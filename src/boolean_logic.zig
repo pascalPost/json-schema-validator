@@ -23,5 +23,5 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, col
         }
     }
 
-    return true;
+    return if (collect_errors) |errors| errors.empty() else true;
 }

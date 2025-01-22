@@ -50,15 +50,18 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, col
     if (node.get("properties")) |properties| {
         std.debug.assert(properties == .object);
 
+        try stack.pushPath("properties");
+        defer stack.pop();
+
         var it = properties.object.iterator();
         while (it.next()) |entry| {
             const key = entry.key_ptr.*;
             const value = entry.value_ptr.*;
 
-            try stack.pushPath("properties");
-            defer stack.pop();
-
             if (data.object.get(key)) |d| {
+                try stack.pushPath(key);
+                defer stack.pop();
+
                 if (!try schema.checks(value, d, stack, collect_errors) and collect_errors == null) return false;
             }
         }
@@ -162,5 +165,5 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, col
         }
     }
 
-    return true;
+    return if (collect_errors) |errors| errors.empty() else true;
 }

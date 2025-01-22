@@ -9,10 +9,11 @@ pub fn checks(comptime T: type, node: std.json.ObjectMap, data_value: T, stack: 
         else => @compileError("unknown type."),
     };
 
-    const valid = try checkExtrema(node, value, stack, collect_errors);
-    if (!valid and collect_errors == null) return false;
+    if (!try checkExtrema(node, value, stack, collect_errors) and collect_errors == null) return false;
 
-    return try checkMultipleOf(node, value, stack, collect_errors) and valid;
+    if (!try checkMultipleOf(node, value, stack, collect_errors) and collect_errors == null) return false;
+
+    return if (collect_errors) |errors| errors.empty() else true;
 }
 
 fn checkMaximum(v: f64, e: f64) bool {
@@ -39,7 +40,6 @@ const allChecks = [_]struct { name: []const u8, check: *const fn (f64, f64) bool
 };
 
 fn checkExtrema(node: std.json.ObjectMap, data_value: f64, stack: *Stack, collect_errors: ?*Errors) !bool {
-    var valid = true;
     for (allChecks) |c| {
         if (node.get(c.name)) |value| {
             const extreme_value: f64 = switch (value) {
@@ -49,10 +49,11 @@ fn checkExtrema(node: std.json.ObjectMap, data_value: f64, stack: *Stack, collec
                 else => std.debug.panic("schema error: value of key \"{s}\" must be number (found: {s})", .{ c.name, @tagName(value) }),
             };
 
-            valid = !c.check(data_value, extreme_value) and valid;
-
-            if (!valid) {
+            if (c.check(data_value, extreme_value)) {
                 if (collect_errors) |errors| {
+                    try stack.pushPath(c.name);
+                    defer stack.pop();
+
                     const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Exceeds {s} {} (found {})", .{ c.name, extreme_value, data_value });
                     try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
                 } else return false;
@@ -60,7 +61,7 @@ fn checkExtrema(node: std.json.ObjectMap, data_value: f64, stack: *Stack, collec
         }
     }
 
-    return valid;
+    return if (collect_errors) |errors| errors.empty() else true;
 }
 
 fn isMultipleOf(n: f64, m: f64) bool {
@@ -85,7 +86,8 @@ fn checkMultipleOf(node: std.json.ObjectMap, data_value: f64, stack: *Stack, col
             if (collect_errors) |errors| {
                 const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Not a multiple of {} (found {})", .{ multiple_value, data_value });
                 try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
-            } else return false;
+            }
+            return false;
         }
     }
 

@@ -81,7 +81,7 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, col
         }
     }
 
-    return true;
+    return if (collect_errors) |errors| errors.empty() else true;
 }
 
 fn checkType(data: std.json.Value, type_name: []const u8) bool {
