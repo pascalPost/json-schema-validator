@@ -57,7 +57,11 @@ test "run test suite" {
         "properties.json",
         "enum.json",
         "uniqueItems.json",
-        // "allOf.json",
+        "anyOf.json",
+        "boolean_schema.json",
+        "oneOf.json",
+        "allOf.json",
+        "not.json",
         // "ref.json",
         // "WIP.json",
     };

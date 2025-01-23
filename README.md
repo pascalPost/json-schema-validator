@@ -22,9 +22,9 @@ The validator currently uses C++ regex implementation for pattern matching, requ
 - [ ] draft-07 tests
   - [x] additionalItems.json
   - [x] additionalProperties.json
-  - [ ] allOf.json
-  - [ ] anyOf.json
-  - [ ] boolean_schema.json
+  - [x] allOf.json
+  - [x] anyOf.json
+  - [x] boolean_schema.json
   - [x] const.json
   - [ ] contains.json
   - [ ] default.json
@@ -46,8 +46,8 @@ The validator currently uses C++ regex implementation for pattern matching, requ
   - [x] minProperties.json
   - [x] minimum.json
   - [x] multipleOf.json
-  - [ ] not.json
-  - [ ] oneOf.json
+  - [x] not.json
+  - [x] oneOf.json
   - [x] pattern.json
   - [x] patternProperties.json
   - [x] properties.json
