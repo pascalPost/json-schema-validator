@@ -3,11 +3,11 @@ const Stack = @import("stack.zig").Stack;
 
 const BaseUriMap = struct {
     arena: std.heap.ArenaAllocator,
-    map: UriHashMap,
+    map: std.StringHashMap([]const u8),
 
     fn init(allocator: std.mem.Allocator, schema: std.json.Value, stack: *Stack) !BaseUriMap {
         var arena = std.heap.ArenaAllocator.init(allocator);
-        var base_uri_map = UriHashMap.init(allocator);
+        var base_uri_map = std.StringHashMap([]const u8).init(allocator);
         try addFromSchema(arena.allocator(), schema, null, stack, &base_uri_map);
         stack.clearRetainCapacity();
         return .{
@@ -21,7 +21,7 @@ const BaseUriMap = struct {
         self.map.deinit();
     }
 
-    fn addFromSchema(allocator: std.mem.Allocator, root: std.json.Value, uri_base: ?std.Uri, stack: *Stack, base_uri_map: *UriHashMap) !void {
+    fn addFromSchema(allocator: std.mem.Allocator, root: std.json.Value, uri_base: ?std.Uri, stack: *Stack, base_uri_map: *std.StringHashMap([]const u8)) !void {
         switch (root) {
             .bool, .string, .number_string, .float, .integer, .null => {},
             .object => |object| {
@@ -52,9 +52,10 @@ const BaseUriMap = struct {
                         }
                     };
 
+                    const uri_str = try std.fmt.allocPrint(allocator, "{}", .{uri});
                     const path = try stack.constructPath(allocator);
 
-                    try base_uri_map.put(uri, path);
+                    try base_uri_map.put(uri_str, path);
 
                     break :blk uri;
                 } else uri_base;
@@ -78,42 +79,6 @@ const BaseUriMap = struct {
                 }
             },
         }
-    }
-};
-
-const UriHashMap = std.HashMap(std.Uri, []const u8, UriContext, std.hash_map.default_max_load_percentage);
-
-const UriContext = struct {
-    pub fn hash(self: UriContext, uri: std.Uri) u64 {
-        _ = self;
-
-        var hasher = std.hash.Wyhash.init(0);
-        hasher.update(uri.scheme);
-        if (uri.user) |component| switch (component) {
-            .raw, .percent_encoded => |string| hasher.update(string),
-        };
-        if (uri.password) |component| switch (component) {
-            .raw, .percent_encoded => |string| hasher.update(string),
-        };
-        if (uri.host) |component| switch (component) {
-            .raw, .percent_encoded => |string| hasher.update(string),
-        };
-        if (uri.port) |port| hasher.update(&std.mem.toBytes(port));
-        switch (uri.path) {
-            .raw, .percent_encoded => |string| hasher.update(string),
-        }
-        if (uri.query) |component| switch (component) {
-            .raw, .percent_encoded => |string| hasher.update(string),
-        };
-        if (uri.fragment) |component| switch (component) {
-            .raw, .percent_encoded => |string| hasher.update(string),
-        };
-        return hasher.final();
-    }
-
-    pub fn eql(self: UriContext, a: std.Uri, b: std.Uri) bool {
-        _ = self;
-        return std.meta.eql(a, b);
     }
 };
 
@@ -141,46 +106,16 @@ test "schema identification examples" {
     const schema_parsed = try std.json.parseFromSlice(std.json.Value, allocator, schema, .{});
     defer schema_parsed.deinit();
 
-    // TODO add a stack to capture current path
     var stack = try Stack.init(allocator, schema_parsed.value, 10);
     defer stack.deinit();
 
     var base_uri_map = try BaseUriMap.init(allocator, schema_parsed.value, &stack);
     defer base_uri_map.deinit();
 
-    var it = base_uri_map.map.iterator();
-    while (it.next()) |entry| {
-        const key = entry.key_ptr.*;
-        const value = entry.value_ptr.*;
-        std.debug.print("{} : {s}\n", .{ key, value });
-    }
+    try std.testing.expectEqualStrings("#", base_uri_map.map.get("http://example.com/root.json").?);
+    try std.testing.expectEqualStrings("#/definitions/A", base_uri_map.map.get("http://example.com/root.json#foo").?);
+    try std.testing.expectEqualStrings("#/definitions/B", base_uri_map.map.get("http://example.com/other.json").?);
+    try std.testing.expectEqualStrings("#/definitions/B/definitions/X", base_uri_map.map.get("http://example.com/other.json#bar").?);
+    try std.testing.expectEqualStrings("#/definitions/B/definitions/Y", base_uri_map.map.get("http://example.com/t/inner.json").?);
+    try std.testing.expectEqualStrings("#/definitions/C", base_uri_map.map.get("urn:uuid:ee564b8a-7a87-4125-8c96-e9f123d6766f").?);
 }
-
-// test "schema" {
-//     const schema =
-//         \\{
-//         \\    "$id": "http://localhost:1234/sibling_id/base/",
-//         \\    "definitions": {
-//         \\        "foo": {
-//         \\            "$id": "http://localhost:1234/sibling_id/foo.json",
-//         \\            "type": "string"
-//         \\        },
-//         \\        "base_foo": {
-//         \\            "$comment": "this canonical uri is http://localhost:1234/sibling_id/base/foo.json",
-//         \\            "$id": "foo.json",
-//         \\            "type": "number"
-//         \\        }
-//         \\    },
-//         \\    "allOf": [
-//         \\        {
-//         \\            "$comment": "$ref resolves to http://localhost:1234/sibling_id/base/foo.json, not http://localhost:1234/sibling_id/foo.json",
-//         \\            "$id": "http://localhost:1234/sibling_id/",
-//         \\            "$ref": "foo.json"
-//         \\        }
-//         \\    ]
-//         \\}
-//     ;
-
-//     // http://localhost:1234/sibling_id/base/ -> #
-//     //
-// }
