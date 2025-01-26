@@ -6,19 +6,6 @@ const eql = @import("value.zig").eql;
 const numeric = @import("numeric.zig");
 
 pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) !bool {
-    if (node.get("$ref")) |ref| {
-        std.debug.assert(ref == .string);
-        const ref_path = ref.string;
-        const node_ref = (try stack.value(ref_path)) orelse {
-            std.debug.print("ref_path could not be found: {s}\n", .{ref_path});
-            unreachable;
-        };
-
-        try stack.pushPath("$ref");
-        defer stack.pop();
-        if (!try schema.checks(node_ref, data, stack, collect_errors)) return false;
-    }
-
     if (node.get("type")) |t| {
         switch (t) {
             .string => {

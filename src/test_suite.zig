@@ -63,7 +63,6 @@ test "run test suite" {
         "allOf.json",
         "not.json",
         // "ref.json",
-        // "WIP.json",
     };
     const allocator = std.testing.allocator;
     var file_path_buf: [100]u8 = undefined;

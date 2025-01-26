@@ -9,9 +9,24 @@ const array = @import("array.zig");
 const json_pointer = @import("json_pointer.zig");
 const boolean_logic = @import("boolean_logic.zig");
 
-pub const ErrorSet = std.mem.Allocator.Error || std.fmt.ParseIntError || json_pointer.Error;
+pub const ErrorSet = error{InvalidPath} || std.mem.Allocator.Error || std.fmt.ParseIntError || json_pointer.Error;
 
 pub fn checksFromObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) ErrorSet!bool {
+    if (schema.get("$ref")) |ref| {
+        std.debug.assert(ref == .string);
+        const ref_path = ref.string;
+        const node_ref = (try stack.value(ref_path)) orelse {
+            std.debug.print("ref_path could not be found: {s}\n", .{ref_path});
+            return error.InvalidPath;
+        };
+
+        try stack.pushPath("$ref");
+        defer stack.pop();
+        if (!try checks(node_ref, data, stack, collect_errors)) return false;
+
+        return if (collect_errors) |errors| errors.empty() else true;
+    }
+
     var valid = try generic.checks(schema, data, stack, collect_errors);
     if (!valid and collect_errors == null) return false;
 

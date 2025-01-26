@@ -14,18 +14,21 @@ pub const Stack = struct {
     allocator: std.mem.Allocator,
     path_buffer: std.ArrayListUnmanaged(u8),
     data: std.ArrayListUnmanaged(Storage),
+
+    // NOTE it might be better to seperate stack from decoder
+
     root: std.json.Value,
     decoder: json_pointer.PathDecoderUnmanaged,
 
-    pub fn init(allocator: std.mem.Allocator, root_node: std.json.Value, capacity: usize) !Stack {
+    pub fn init(allocator: std.mem.Allocator, schema_root: std.json.Value, capacity: usize) !Stack {
         // TODO allow to give an estimated depth and init with capacity
         const path_capacity = 1000;
         return .{
             .allocator = allocator,
             .path_buffer = try std.ArrayListUnmanaged(u8).initCapacity(allocator, capacity),
             .data = try std.ArrayListUnmanaged(Storage).initCapacity(allocator, capacity),
-            .root = root_node,
-            .decoder = try json_pointer.PathDecoderUnmanaged.initCapacity(allocator, path_capacity),
+            .root = schema_root,
+            .decoder = try json_pointer.PathDecoderUnmanaged.initCapacity(allocator, json_pointer.schemaURI(schema_root), path_capacity),
         };
     }
 
@@ -80,7 +83,12 @@ pub const Stack = struct {
 
     pub fn value(self: *Stack, abs_path: []const u8) !?std.json.Value {
         std.debug.assert(abs_path.len > 0);
-        std.debug.assert(abs_path[0] == '#');
+
+        if (abs_path[0] != '#') {
+            std.debug.print("invalid ref path encountered: {s}\n", .{abs_path});
+            return error.InvalidPath;
+        }
+
         if (abs_path.len == 1) return self.root;
 
         var it = try std.fs.path.componentIterator(abs_path[1..]);
