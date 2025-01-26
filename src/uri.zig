@@ -1,6 +1,87 @@
 const std = @import("std");
 const Stack = @import("stack.zig").Stack;
 
+const BaseUriMap = struct {
+    arena: std.heap.ArenaAllocator,
+    map: UriHashMap,
+
+    fn init(allocator: std.mem.Allocator, schema: std.json.Value, stack: *Stack) !BaseUriMap {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        var base_uri_map = UriHashMap.init(allocator);
+
+        // needed for uri
+        var mem: [1000]u8 = undefined;
+        var buf: []u8 = mem[0..];
+
+        try addFromSchema(arena.allocator(), schema, null, &buf, &stack, &base_uri_map);
+        stack.clearRetainCapacity();
+        return .{
+            .arena = arena,
+            .map = base_uri_map,
+        };
+    }
+
+    fn deinit(self: *BaseUriMap) void {
+        self.arena.deinit();
+        self.map.deinit();
+    }
+
+    fn addFromSchema(allocator: std.mem.Allocator, root: std.json.Value, uri_base: ?std.Uri, buf: *[]u8, stack: *Stack, base_uri_map: *UriHashMap) !void {
+        switch (root) {
+            .bool, .string, .number_string, .float, .integer, .null => {},
+            .object => |object| {
+                const base = if (object.get("$id")) |id| blk: {
+                    const id_str = switch (id) {
+                        .string => |s| s,
+                        else => {
+                            std.debug.print("$id must be of type string (encountered {s}).", .{@tagName(id)});
+                            unreachable;
+                        },
+                    };
+
+                    const uri = uri_blk: {
+                        if (std.Uri.parse(id_str)) |abs_uri| {
+                            break :uri_blk abs_uri;
+                        } else |_| {}
+
+                        // uri is relative: construct uri with uri base
+                        if (uri_base == null) std.debug.panic("encountered relative uri w/o uri base.", .{});
+                        if (std.Uri.resolve_inplace(uri_base.?, id_str, buf)) |uri| {
+                            break :uri_blk uri;
+                        } else |err| {
+                            std.debug.panic("Error in constructing uri with base {} and relative part {s} (error: {})", .{ uri_base.?, id_str, err });
+                        }
+                    };
+
+                    const path = try stack.constructPath(allocator);
+
+                    try base_uri_map.put(uri, path);
+
+                    break :blk uri;
+                } else uri_base;
+
+                var it = object.iterator();
+                while (it.next()) |entry| {
+                    const key = entry.key_ptr.*;
+                    const value = entry.value_ptr.*;
+
+                    try stack.pushPath(key);
+                    defer stack.pop();
+
+                    try findAllIdInSchema(allocator, value, base, buf, stack, base_uri_map);
+                }
+            },
+            .array => |array| {
+                for (array.items, 0..) |value, index| {
+                    try stack.pushIndex(index);
+                    defer stack.pop();
+                    try findAllIdInSchema(allocator, value, uri_base, buf, stack, base_uri_map);
+                }
+            },
+        }
+    }
+};
+
 const UriHashMap = std.HashMap(std.Uri, []const u8, UriContext, std.hash_map.default_max_load_percentage);
 
 const UriContext = struct {
@@ -37,15 +118,6 @@ const UriContext = struct {
     }
 };
 
-// test "uri" {
-//     const base = try std.Uri.parse("http://localhost:1234/sibling_id/base/");
-//     var mem: [1000]u8 = undefined;
-//     var buf: []u8 = mem[0..];
-//     const res = try std.Uri.resolve_inplace(base, "foo.json", &buf);
-
-//     std.debug.print("{}", .{res});
-// }
-
 test "schema identification examples" {
     const schema =
         \\{
@@ -74,88 +146,14 @@ test "schema identification examples" {
     var stack = try Stack.init(allocator, schema_parsed.value, 10);
     defer stack.deinit();
 
-    var base_uri_map = UriHashMap.init(allocator);
+    const base_uri_map = try BaseUriMap.init(allocator, &stack);
     defer base_uri_map.deinit();
 
-    // traverse tree and find all id instances
-    std.debug.print("Collecting all ids:\n", .{});
-
-    // needed for uri
-    var mem: [1000]u8 = undefined;
-    var buf: []u8 = mem[0..];
-
-    // needed for doc path creation
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-
-    try findAllIdInSchema(arena.allocator(), schema_parsed.value, null, &buf, &stack, &base_uri_map);
-
-    var it = base_uri_map.iterator();
+    var it = base_uri_map.map.iterator();
     while (it.next()) |entry| {
         const key = entry.key_ptr.*;
         const value = entry.value_ptr.*;
         std.debug.print("{} : {s}\n", .{ key, value });
-    }
-}
-
-fn findAllIdInSchema(allocator: std.mem.Allocator, root: std.json.Value, uri_base: ?std.Uri, buf: *[]u8, stack: *Stack, base_uri_mesh: *UriHashMap) !void {
-    switch (root) {
-        .bool, .string, .number_string, .float, .integer, .null => {},
-        .object => |object| {
-            const base = if (object.get("$id")) |id| blk: {
-                const id_str = switch (id) {
-                    .string => |s| s,
-                    else => {
-                        std.debug.print("$id must be of type string (encountered {s}).", .{@tagName(id)});
-                        unreachable;
-                    },
-                };
-
-                const uri = uri_blk: {
-                    if (std.Uri.parse(id_str)) |abs_uri| {
-                        // std.debug.print("abs uri: {}\n", .{abs_uri});
-                        break :uri_blk abs_uri;
-                    } else |_| {}
-
-                    // uri is relative: construct uri with uri base
-                    if (uri_base == null) std.debug.panic("encountered relative uri w/o uri base.", .{});
-                    if (std.Uri.resolve_inplace(uri_base.?, id_str, buf)) |uri| {
-                        // std.debug.print("uri: {}\n", .{uri});
-                        break :uri_blk uri;
-                    } else |err| {
-                        std.debug.panic("Error in constructing uri with base {} and relative part {s} (error: {})", .{ uri_base.?, id_str, err });
-                    }
-                };
-
-                const path = try stack.constructPath(allocator);
-
-                std.debug.print("path: {s}\n", .{path});
-                std.debug.print("$id: {s}\n", .{id_str});
-                std.debug.print("uri: {}\n", .{uri});
-
-                try base_uri_mesh.put(uri, path);
-
-                break :blk uri;
-            } else uri_base;
-
-            var it = object.iterator();
-            while (it.next()) |entry| {
-                const key = entry.key_ptr.*;
-                const value = entry.value_ptr.*;
-
-                try stack.pushPath(key);
-                defer stack.pop();
-
-                try findAllIdInSchema(allocator, value, base, buf, stack, base_uri_mesh);
-            }
-        },
-        .array => |array| {
-            for (array.items, 0..) |value, index| {
-                try stack.pushIndex(index);
-                defer stack.pop();
-                try findAllIdInSchema(allocator, value, uri_base, buf, stack, base_uri_mesh);
-            }
-        },
     }
 }
 

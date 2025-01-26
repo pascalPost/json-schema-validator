@@ -7,7 +7,6 @@ pub const Error = error{
 /// decode escaped characters in given path (see https://datatracker.ietf.org/doc/html/rfc6901#section-4)
 pub const PathDecoderUnmanaged = struct {
     buffer: std.ArrayListUnmanaged(u8),
-    uri: ?[]const u8,
 
     pub fn initCapacity(allocator: std.mem.Allocator, uri: ?[]const u8, path_len_capacity: usize) !PathDecoderUnmanaged {
         return .{

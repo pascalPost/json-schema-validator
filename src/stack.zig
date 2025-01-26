@@ -38,6 +38,11 @@ pub const Stack = struct {
         self.decoder.deinit(self.allocator);
     }
 
+    pub fn clearRetainCapacity(self: *Stack) void {
+        self.path_buffer.clearRetainingCapacity();
+        self.data.clearRetainingCapacity();
+    }
+
     pub fn pushPath(self: *Stack, path: []const u8) !void {
         try self.path_buffer.appendSlice(self.allocator, path);
         try self.data.append(self.allocator, .{ .path_len = path.len });
