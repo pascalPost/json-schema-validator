@@ -8,10 +8,9 @@ pub const Error = error{
 pub const PathDecoderUnmanaged = struct {
     buffer: std.ArrayListUnmanaged(u8),
 
-    pub fn initCapacity(allocator: std.mem.Allocator, uri: ?[]const u8, path_len_capacity: usize) !PathDecoderUnmanaged {
+    pub fn initCapacity(allocator: std.mem.Allocator, path_len_capacity: usize) !PathDecoderUnmanaged {
         return .{
             .buffer = try std.ArrayListUnmanaged(u8).initCapacity(allocator, path_len_capacity),
-            .uri = uri,
         };
     }
 
@@ -93,7 +92,7 @@ pub fn schemaURI(schema: std.json.Value) ?[]const u8 {
 
 test "path decoding" {
     const allocator = std.testing.allocator;
-    var decoder = try PathDecoderUnmanaged.initCapacity(allocator, null, 1000);
+    var decoder = try PathDecoderUnmanaged.initCapacity(allocator, 1000);
     defer decoder.deinit(allocator);
 
     try std.testing.expectError(Error.InvalidPointerSyntax, decoder.decode(allocator, "~"));

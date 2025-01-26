@@ -8,12 +8,7 @@ const BaseUriMap = struct {
     fn init(allocator: std.mem.Allocator, schema: std.json.Value, stack: *Stack) !BaseUriMap {
         var arena = std.heap.ArenaAllocator.init(allocator);
         var base_uri_map = UriHashMap.init(allocator);
-
-        // needed for uri
-        var mem: [1000]u8 = undefined;
-        var buf: []u8 = mem[0..];
-
-        try addFromSchema(arena.allocator(), schema, null, &buf, &stack, &base_uri_map);
+        try addFromSchema(arena.allocator(), schema, null, stack, &base_uri_map);
         stack.clearRetainCapacity();
         return .{
             .arena = arena,
@@ -26,7 +21,7 @@ const BaseUriMap = struct {
         self.map.deinit();
     }
 
-    fn addFromSchema(allocator: std.mem.Allocator, root: std.json.Value, uri_base: ?std.Uri, buf: *[]u8, stack: *Stack, base_uri_map: *UriHashMap) !void {
+    fn addFromSchema(allocator: std.mem.Allocator, root: std.json.Value, uri_base: ?std.Uri, stack: *Stack, base_uri_map: *UriHashMap) !void {
         switch (root) {
             .bool, .string, .number_string, .float, .integer, .null => {},
             .object => |object| {
@@ -46,7 +41,11 @@ const BaseUriMap = struct {
 
                         // uri is relative: construct uri with uri base
                         if (uri_base == null) std.debug.panic("encountered relative uri w/o uri base.", .{});
-                        if (std.Uri.resolve_inplace(uri_base.?, id_str, buf)) |uri| {
+
+                        const resolved_uri_buf_size = 1000;
+                        var buf = try allocator.alloc(u8, resolved_uri_buf_size);
+                        if (std.Uri.resolve_inplace(uri_base.?, id_str, &buf)) |uri| {
+                            allocator.free(buf);
                             break :uri_blk uri;
                         } else |err| {
                             std.debug.panic("Error in constructing uri with base {} and relative part {s} (error: {})", .{ uri_base.?, id_str, err });
@@ -68,14 +67,14 @@ const BaseUriMap = struct {
                     try stack.pushPath(key);
                     defer stack.pop();
 
-                    try findAllIdInSchema(allocator, value, base, buf, stack, base_uri_map);
+                    try addFromSchema(allocator, value, base, stack, base_uri_map);
                 }
             },
             .array => |array| {
                 for (array.items, 0..) |value, index| {
                     try stack.pushIndex(index);
                     defer stack.pop();
-                    try findAllIdInSchema(allocator, value, uri_base, buf, stack, base_uri_map);
+                    try addFromSchema(allocator, value, uri_base, stack, base_uri_map);
                 }
             },
         }
@@ -146,7 +145,7 @@ test "schema identification examples" {
     var stack = try Stack.init(allocator, schema_parsed.value, 10);
     defer stack.deinit();
 
-    const base_uri_map = try BaseUriMap.init(allocator, &stack);
+    var base_uri_map = try BaseUriMap.init(allocator, schema_parsed.value, &stack);
     defer base_uri_map.deinit();
 
     var it = base_uri_map.map.iterator();

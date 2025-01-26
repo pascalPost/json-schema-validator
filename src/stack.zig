@@ -28,7 +28,7 @@ pub const Stack = struct {
             .path_buffer = try std.ArrayListUnmanaged(u8).initCapacity(allocator, capacity),
             .data = try std.ArrayListUnmanaged(Storage).initCapacity(allocator, capacity),
             .root = schema_root,
-            .decoder = try json_pointer.PathDecoderUnmanaged.initCapacity(allocator, json_pointer.schemaURI(schema_root), path_capacity),
+            .decoder = try json_pointer.PathDecoderUnmanaged.initCapacity(allocator, path_capacity),
         };
     }
 
