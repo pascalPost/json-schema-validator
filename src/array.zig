@@ -111,12 +111,25 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, col
             for (head + 1..items.len) |index| {
                 if (eql(item, items[index])) {
                     if (collect_errors) |errors| {
-                        const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array contains non-unique items ({} and {}) ", .{ head, index });
+                        const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Array contains non-unique items ({} and {})", .{ head, index });
                         try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
                     } else return false;
                 }
             }
         }
+    }
+
+    if (node.get("contains")) |contains| blk: {
+        try stack.pushPath("contains");
+        defer stack.pop();
+
+        for (data.array.items) |item| {
+            if (try schema.checks(contains, item, stack, null)) break :blk;
+        }
+
+        if (collect_errors) |errors| {
+            try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = "Array items are all invalid against contains schema." });
+        } else return false;
     }
 
     return if (collect_errors) |errors| errors.empty() else true;

@@ -63,6 +63,7 @@ test "run test suite" {
         "allOf.json",
         "not.json",
         "if-then-else.json",
+        "contains.json",
         // "ref.json",
         // "WIP.json",
     };

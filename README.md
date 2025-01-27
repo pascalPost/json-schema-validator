@@ -26,7 +26,7 @@ The validator currently uses C++ regex implementation for pattern matching, requ
   - [x] anyOf.json
   - [x] boolean_schema.json
   - [x] const.json
-  - [ ] contains.json
+  - [x] contains.json
   - [ ] default.json
   - [ ] definitions.json
   - [ ] dependencies.json
