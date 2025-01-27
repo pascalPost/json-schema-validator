@@ -27,7 +27,7 @@ The validator currently uses C++ regex implementation for pattern matching, requ
   - [x] boolean_schema.json
   - [x] const.json
   - [x] contains.json
-  - [ ] default.json
+  - [x] default.json
   - [ ] definitions.json
   - [ ] dependencies.json
   - [x] enum.json
@@ -57,6 +57,10 @@ The validator currently uses C++ regex implementation for pattern matching, requ
   - [x] required.json
   - [x] type.json
   - [x] uniqueItems.json
+
+## Feature ideas
+
+- add option to set defaults (for a schema validation defaults are just annotations.)
 
 ## Contributing
 

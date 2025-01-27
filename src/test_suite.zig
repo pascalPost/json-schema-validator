@@ -64,6 +64,7 @@ test "run test suite" {
         "not.json",
         "if-then-else.json",
         "contains.json",
+        "default.json",
         // "ref.json",
         // "WIP.json",
     };
