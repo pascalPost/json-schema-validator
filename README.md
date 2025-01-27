@@ -51,7 +51,7 @@ The validator currently uses C++ regex implementation for pattern matching, requ
   - [x] pattern.json
   - [x] patternProperties.json
   - [x] properties.json
-  - [ ] propertyNames.json
+  - [x] propertyNames.json
   - [ ] ref.json
   - [ ] refRemote.json
   - [x] required.json

@@ -165,5 +165,21 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, col
         }
     }
 
+    if (node.get("propertyNames")) |propertyNames| {
+        try stack.pushPath("propertyNames");
+        defer stack.pop();
+
+        var it = data.object.iterator();
+        while (it.next()) |entry| {
+            const key = entry.key_ptr.*;
+            if (!try schema.checks(propertyNames, .{ .string = key }, stack, collect_errors)) {
+                if (collect_errors) |errors| {
+                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Invalid propertyNames for keyword {s}.", .{key});
+                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                } else return false;
+            }
+        }
+    }
+
     return if (collect_errors) |errors| errors.empty() else true;
 }
