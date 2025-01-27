@@ -8,14 +8,14 @@ const string = @import("string.zig");
 const array = @import("array.zig");
 const json_pointer = @import("json_pointer.zig");
 const boolean_logic = @import("boolean_logic.zig");
+const conditional = @import("conditional.zig");
 
 pub const ErrorSet = std.mem.Allocator.Error || std.fmt.ParseIntError || json_pointer.Error;
 
 pub fn checksFromObject(schema: std.json.ObjectMap, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) ErrorSet!bool {
-    var valid = try generic.checks(schema, data, stack, collect_errors);
-    if (!valid and collect_errors == null) return false;
+    if (!try generic.checks(schema, data, stack, collect_errors) and collect_errors == null) return false;
 
-    valid = switch (data) {
+    if (!switch (data) {
         .integer => |i| try numeric.checks(i64, schema, i, stack, collect_errors),
         .float => |f| try numeric.checks(f64, schema, f, stack, collect_errors),
         .number_string => unreachable,
@@ -23,12 +23,13 @@ pub fn checksFromObject(schema: std.json.ObjectMap, data: std.json.Value, stack:
         .object => try object.checks(schema, data, stack, collect_errors),
         .array => try array.checks(schema, data, stack, collect_errors),
         else => true,
-    } and valid;
-    if (!valid and collect_errors == null) return false;
+    } and collect_errors == null) return false;
 
-    valid = try boolean_logic.checks(schema, data, stack, collect_errors) and valid;
+    if (!try conditional.checks(schema, data, stack, collect_errors) and collect_errors == null) return false;
 
-    return valid;
+    if (!try boolean_logic.checks(schema, data, stack, collect_errors) and collect_errors == null) return false;
+
+    return if (collect_errors) |errors| errors.empty() else true;
 }
 
 pub fn checks(schema: std.json.Value, data: std.json.Value, stack: *Stack, collect_errors: ?*Errors) ErrorSet!bool {
