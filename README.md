@@ -33,7 +33,7 @@ The validator currently uses C++ regex implementation for pattern matching, requ
   - [x] enum.json
   - [x] exclusiveMaximum.json
   - [x] exclusiveMinimum.json
-  - [ ] format.json
+  - [x] format.json
   - [x] if-then-else.json
   - [ ] infinite-loop-detection.json
   - [x] items.json
