@@ -29,7 +29,7 @@ The validator currently uses C++ regex implementation for pattern matching, requ
   - [x] contains.json
   - [x] default.json
   - [ ] definitions.json
-  - [ ] dependencies.json
+  - [x] dependencies.json
   - [x] enum.json
   - [x] exclusiveMaximum.json
   - [x] exclusiveMinimum.json

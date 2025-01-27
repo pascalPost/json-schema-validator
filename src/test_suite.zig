@@ -66,6 +66,7 @@ test "run test suite" {
         "contains.json",
         "default.json",
         "propertyNames.json",
+        "dependencies.json",
         // "ref.json",
         // "WIP.json",
     };

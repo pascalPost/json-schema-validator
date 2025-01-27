@@ -166,18 +166,66 @@ pub fn checks(node: std.json.ObjectMap, data: std.json.Value, stack: *Stack, col
     }
 
     if (node.get("propertyNames")) |propertyNames| {
-        try stack.pushPath("propertyNames");
-        defer stack.pop();
-
         var it = data.object.iterator();
         while (it.next()) |entry| {
             const key = entry.key_ptr.*;
-            if (!try schema.checks(propertyNames, .{ .string = key }, stack, collect_errors)) {
+            if (!try schema.checks(propertyNames, .{ .string = key }, stack, null)) {
                 if (collect_errors) |errors| {
+                    try stack.pushPath("propertyNames");
+                    defer stack.pop();
                     const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Invalid propertyNames for keyword {s}.", .{key});
                     try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
                 } else return false;
             }
+        }
+    }
+
+    if (node.get("dependencies")) |dependencies| {
+        switch (dependencies) {
+            .object => |object| {
+                try stack.pushPath("dependencies");
+                defer stack.pop();
+
+                var it = object.iterator();
+                while (it.next()) |entry| {
+                    const key = entry.key_ptr.*;
+                    const value = entry.value_ptr.*;
+
+                    if (data.object.get(key)) |_| {
+                        switch (value) {
+                            .array => |array| {
+                                for (array.items) |item| {
+                                    switch (item) {
+                                        .string => |string| {
+                                            if (!data.object.contains(string)) {
+                                                if (collect_errors) |errors| {
+                                                    try stack.pushPath(key);
+                                                    defer stack.pop();
+                                                    const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Invalid dependencies for keyword {s}: {s} not a keyword of the data.", .{ key, string });
+                                                    try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                                                } else return false;
+                                            }
+                                        },
+                                        else => std.debug.panic("Invalid schema: dependencies property array must only contain strings, but encountered {s}", .{@tagName(item)}),
+                                    }
+                                }
+                            },
+                            else => {
+                                // dependency must be a schema
+                                if (!try schema.checks(value, data, stack, null)) {
+                                    if (collect_errors) |errors| {
+                                        try stack.pushPath(key);
+                                        defer stack.pop();
+                                        const msg = try std.fmt.allocPrint(errors.arena.allocator(), "Invalid dependencies schema for keyword {s}.", .{key});
+                                        try errors.append(.{ .path = try stack.constructPath(errors.arena.allocator()), .msg = msg });
+                                    } else return false;
+                                }
+                            },
+                        }
+                    }
+                }
+            },
+            else => std.debug.panic("Invalid schema: dependencies must be an object", .{}),
         }
     }
 
